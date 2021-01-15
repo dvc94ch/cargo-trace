@@ -1,0 +1,11 @@
+[workspace]
+members = [
+    "bpf",
+    "bpf-macros",
+    "bpf-helpers",
+    "bpf-helpers-sys",
+    "bpf-probes",
+    "bpf-utils",
+    "examples/syscount",
+    "examples/syscount/probe",
+]

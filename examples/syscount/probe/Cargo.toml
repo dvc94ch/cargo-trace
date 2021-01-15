@@ -1,0 +1,16 @@
+[package]
+name = "syscount-probe"
+version = "0.1.0"
+authors = ["David Craven <david@craven.ch>"]
+edition = "2018"
+
+[features]
+probes = [] # required by cargo-bpf
+
+[dependencies]
+bpf-helpers = { path = "../../../bpf-helpers" }
+
+[[bin]] # required by cargo-bpf
+name = "syscount_probe"
+path = "src/main.rs"
+required-features = ["probes"]

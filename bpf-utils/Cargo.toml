@@ -1,0 +1,9 @@
+[package]
+name = "bpf-utils"
+version = "0.1.0"
+authors = ["David Craven <david@craven.ch>"]
+edition = "2018"
+
+[dependencies]
+anyhow = "1.0.38"
+libc = "0.2.82"

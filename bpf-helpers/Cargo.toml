@@ -1,0 +1,10 @@
+[package]
+name = "bpf-helpers"
+version = "0.1.0"
+authors = ["David Craven <david@craven.ch>"]
+edition = "2018"
+
+[dependencies]
+bpf-helpers-sys = { version = "0.1.0", path = "../bpf-helpers-sys" }
+bpf-macros = { version = "0.1.0", path = "../bpf-macros" }
+cty = "0.2.1"
