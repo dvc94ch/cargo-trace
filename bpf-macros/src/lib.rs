@@ -80,11 +80,11 @@ pub fn entry(attrs: TokenStream, item: TokenStream) -> TokenStream {
     };
     let mut event = quote!();
     let arg = match prog_type.as_str() {
-        "kprobe" => quote!(&bpf_helpers::kprobe::pt_regs),
-        "perf_event" => quote!(&bpf_helpers::perf_event::bpf_perf_event_data),
-        "tracing" => quote!(*const core::ffi::c_void),
-        "raw_tracepoint" => quote!(u64),
-        "raw_tracepoint_writable" => quote!(u64),
+        "kprobe" => quote!(bpf_helpers::kprobe::pt_regs),
+        "perf_event" => quote!(bpf_helpers::perf_event::bpf_perf_event_data),
+        "tracing" => quote!(core::ffi::c_void),
+        //"raw_tracepoint" => quote!(u64),
+        //"raw_tracepoint_writable" => quote!(u64),
         tracepoint => {
             let mut iter = tracepoint.split(':');
             let category = iter.next().expect("category");
@@ -98,11 +98,12 @@ pub fn entry(attrs: TokenStream, item: TokenStream) -> TokenStream {
             });
             prog_type = "tracepoint".to_string();
             event = quote! {
+                #[repr(C)]
                 struct #struct_ident {
                     #(#fields)*
                 }
             };
-            quote!(&#struct_ident)
+            quote!(#struct_ident)
         }
     };
     let ident = &prog.sig.ident;
@@ -115,8 +116,9 @@ pub fn entry(attrs: TokenStream, item: TokenStream) -> TokenStream {
         #[link_section = #section_name]
         fn #ident(arg: *const core::ffi::c_void) -> i32 {
             use bpf_helpers::#prog_type::*;
+            #[inline(always)]
             #prog
-            let arg: #arg = unsafe { core::mem::transmute(arg) };
+            let arg = unsafe { &*(arg as *const #arg) };
             #ident(arg);
             0
         }

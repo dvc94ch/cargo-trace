@@ -46,25 +46,10 @@ impl<K, V> HashMap<K, V> {
 
     /// Returns a reference to the value corresponding to the key.
     #[inline]
-    pub fn get(&mut self, key: &K) -> Option<&V> {
-        unsafe {
+    pub fn get<R, F: FnOnce(Option<&mut V>) -> R>(&self, key: &K, f: F) -> R {
+        let rvalue = unsafe {
             let value = bpf_helpers_sys::bpf_map_lookup_elem(
-                &mut self.def as *mut _ as *mut c_void,
-                key as *const _ as *const c_void,
-            );
-            if value.is_null() {
-                None
-            } else {
-                Some(&*(value as *const V))
-            }
-        }
-    }
-
-    #[inline]
-    pub fn get_mut(&mut self, key: &K) -> Option<&mut V> {
-        unsafe {
-            let value = bpf_helpers_sys::bpf_map_lookup_elem(
-                &mut self.def as *mut _ as *mut c_void,
+                &self.def as *const _ as *mut c_void,
                 key as *const _ as *const c_void,
             );
             if value.is_null() {
@@ -72,15 +57,40 @@ impl<K, V> HashMap<K, V> {
             } else {
                 Some(&mut *(value as *mut V))
             }
-        }
+        };
+        f(rvalue)
+    }
+
+    /// Returns a reference to the value corresponding to the key.
+    #[inline]
+    pub fn get_map<R, F: FnOnce(&mut V) -> R>(&self, key: &K, f: F) -> Option<R> {
+        self.get(key, |value| value.map(f))
+    }
+
+    /// Returns a reference to the value corresponding to the key.
+    #[inline]
+    pub fn get_or_default<R, F: FnOnce(&mut V) -> R>(&self, key: &K, f: F) -> R
+    where
+        V: Default,
+    {
+        self.get(key, |value| {
+            if let Some(value) = value {
+                f(value)
+            } else {
+                let mut value = V::default();
+                let res = f(&mut value);
+                self.set(key, &value);
+                res
+            }
+        })
     }
 
     /// Set the `value` in the map for `key`
     #[inline]
-    pub fn set(&mut self, key: &K, value: &V) {
+    pub fn set(&self, key: &K, value: &V) {
         unsafe {
             bpf_helpers_sys::bpf_map_update_elem(
-                &mut self.def as *mut _ as *mut c_void,
+                &self.def as *const _ as *mut c_void,
                 key as *const _ as *const c_void,
                 value as *const _ as *const c_void,
                 bpf_helpers_sys::BPF_ANY.into(),
@@ -90,10 +100,10 @@ impl<K, V> HashMap<K, V> {
 
     /// Delete the entry indexed by `key`
     #[inline]
-    pub fn delete(&mut self, key: &K) {
+    pub fn delete(&self, key: &K) {
         unsafe {
             bpf_helpers_sys::bpf_map_delete_elem(
-                &mut self.def as *mut _ as *mut c_void,
+                &self.def as *const _ as *mut c_void,
                 key as *const _ as *const c_void,
             );
         }
