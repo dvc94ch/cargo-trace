@@ -12,7 +12,10 @@ use libbpf_rs::{Program, ProgramAttachType, ProgramType};
 use std::path::PathBuf;
 use std::time::Duration;
 
+mod attach;
 mod parse;
+
+pub use crate::attach::AttachedProbe;
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq)]
 pub enum Interval {
@@ -166,26 +169,13 @@ impl Probe {
         }
     }
 
-    pub fn attach(&self, _program: &mut Program) -> Result<()> {
-        /*match self {
-            Self::Kprobe { symbol, offset } => {
-                program.attach_kprobe(false, symbol)
-            }
-            Self::Kretprobe { symbol, offset } => program.attach_kprobe(true, symbol),
-            Self::Tracepoint { category, name } => program.attach_tracepoint(category, name),
-            Self::Profile { frequency } => {
-                for cpu in get_online_cpus() {
-                    program.attach_perf_event()
-                }
-            }
-        }*/
-        Ok(())
-    }
-
-    pub fn attach_pid(&self, _program: &mut Program, _pid: i32) -> Result<()> {
-        /*match self {
-            Self::Uprobe { path, symbol, offset } => program.attach_uprobe(false, pid, path, offset),
-        }*/
-        Ok(())
+    pub fn attach(&self, program: &mut Program) -> Result<AttachedProbe> {
+        let probe = match self {
+            Self::Tracepoint { category, name } => AttachedProbe::tracepoint(category, name),
+            _ => todo!(),
+        }?;
+        probe.set_bpf(program)?;
+        probe.enable()?;
+        Ok(probe)
     }
 }
