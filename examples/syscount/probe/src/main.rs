@@ -1,7 +1,7 @@
 #![no_std]
 #![no_main]
 
-use bpf_helpers::{entry, map, program, HashMap, Instant, PidTgid};
+use bpf_helpers::{entry, map, program, HashMap, Instant, PidTgid, U32};
 use syscount_probe::SyscallInfo;
 
 program!(0xFFFFFFFE, b"GPL");
@@ -14,7 +14,7 @@ const BY_PROCESS: bool = false;
 #[map]
 static START: HashMap<PidTgid, Instant> = HashMap::with_max_entries(1024);
 #[map]
-static DATA: HashMap<u32, SyscallInfo> = HashMap::with_max_entries(1024);
+static DATA: HashMap<U32, SyscallInfo> = HashMap::with_max_entries(1024);
 
 #[entry("raw_syscalls:sys_enter")]
 fn sys_enter(_args: &SysEnter) {
@@ -54,9 +54,9 @@ fn sys_exit(args: &SysExit) {
         args.id as u32
     };
     if let Some(elapsed) = START.get_map(&pid_tgid, |start| start.elapsed()) {
-        DATA.get_or_default(&key, |entry| {
-            entry.count += 1;
-            entry.time += elapsed;
+        DATA.get_or_default(&U32::new(key), |entry| {
+            entry.count.set(entry.count.get() + 1);
+            //entry.time += elapsed;
         });
     }
 }

@@ -111,10 +111,12 @@ name = "bpf"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bpf-helpers",
  "bpf-probes",
  "bpf-utils",
  "libbpf-rs",
  "sudo",
+ "zerocopy",
 ]
 
 [[package]]
@@ -123,7 +125,9 @@ version = "0.1.0"
 dependencies = [
  "bpf-helpers-sys",
  "bpf-macros",
+ "byteorder",
  "cty",
+ "zerocopy",
 ]
 
 [[package]]
@@ -553,8 +557,7 @@ checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 [[package]]
 name = "libbpf-rs"
 version = "0.6.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bac9686713501ee8f00708ede770b2e6617c0c61cc9ac6cef978917d59dca167"
+source = "git+https://github.com/libbpf/libbpf-rs#a0070b36e9f00546ac551498b8641ea8dc6c706e"
 dependencies = [
  "bitflags",
  "libbpf-sys",
@@ -1058,6 +1061,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "synstructure"
+version = "0.12.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b834f2d66f734cb897113e34aaff2f1ab4719ca946f9a7358dba8f8064148701"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+ "unicode-xid",
+]
+
+[[package]]
 name = "syscount"
 version = "0.1.0"
 dependencies = [
@@ -1072,6 +1087,7 @@ name = "syscount-probe"
 version = "0.1.0"
 dependencies = [
  "bpf-helpers",
+ "zerocopy",
 ]
 
 [[package]]
@@ -1328,3 +1344,24 @@ name = "zero"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5f1bc8a6b2005884962297587045002d8cfb8dcec9db332f4ca216ddc5de82c5"
+
+[[package]]
+name = "zerocopy"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6580539ad917b7c026220c4b3f2c08d52ce54d6ce0dc491e66002e35388fab46"
+dependencies = [
+ "byteorder",
+ "zerocopy-derive",
+]
+
+[[package]]
+name = "zerocopy-derive"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d498dbd1fd7beb83c86709ae1c33ca50942889473473d287d56ce4770a18edfb"
+dependencies = [
+ "proc-macro2",
+ "syn",
+ "synstructure",
+]
