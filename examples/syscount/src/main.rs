@@ -9,11 +9,11 @@ static PROBE: &[u8] = include_bytes!(concat!(
 ));
 
 fn main() -> Result<()> {
-    let bpf = BpfBuilder::new(PROBE)?
-        .attach_probe("tracepoint:raw_syscalls:sys_enter", "sys_enter")?
-        .attach_probe("tracepoint:raw_syscalls:sys_exit", "sys_exit")?
-        .attach_probe("profile:hz:99", "profile")?
-        .load()?;
+    let bpf = BpfBuilder::new(PROBE)?;
+        //.attach_probe("tracepoint:raw_syscalls:sys_enter", "sys_enter")?
+        //.attach_probe("tracepoint:raw_syscalls:sys_exit", "sys_exit")?
+        //.attach_probe("profile:hz:99", "profile")?;
+        //.load()?;
 
     // let data = obj.map("data")?.unwrap();
     // BpfHashMap::<u32, SyscallInfo>::attach(data)?;

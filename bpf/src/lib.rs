@@ -11,7 +11,10 @@ impl BpfBuilder {
     pub fn new(prog: &[u8]) -> Result<Self> {
         sudo::escalate_if_needed().unwrap();
         bpf_utils::rlimit::increase_memlock_rlimit()?;
-        let new_obj = ObjectBuilder::default().open_memory("bpf", prog)?;
+        let new_obj = ObjectBuilder::default()
+            .debug(true)
+            .relaxed_maps(true)
+            .open_memory("bpf", prog)?;
         Ok(Self {
             probes: Default::default(),
             new_obj,

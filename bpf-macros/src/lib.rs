@@ -61,16 +61,11 @@ pub fn program(input: TokenStream) -> TokenStream {
 }
 
 #[proc_macro_attribute]
-pub fn map(attrs: TokenStream, item: TokenStream) -> TokenStream {
+pub fn map(_: TokenStream, item: TokenStream) -> TokenStream {
     let map = parse_macro_input!(item as syn::ItemStatic);
-    let map_name = match parse_macro_input!(attrs as syn::Lit) {
-        syn::Lit::Str(s) => s.value(),
-        _ => panic!("expected string literal"),
-    };
-    let section_name = format!(".maps/{}", map_name);
     let tokens = quote! {
         #[no_mangle]
-        #[link_section = #section_name]
+        #[link_section = "maps"]
         #map
     };
     tokens.into()

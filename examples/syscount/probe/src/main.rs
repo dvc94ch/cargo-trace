@@ -20,11 +20,11 @@ const FILTER_FAILED: bool = true;
 const FILTER_ERRNO: Option<i64> = None;
 const BY_PROCESS: bool = false;
 
-#[map("start")]
+#[map]
 static mut START: HashMap<PidTgid, Instant> = HashMap::with_max_entries(1024);
-#[map("data")]
+#[map]
 static mut DATA: HashMap<u32, SyscallInfo> = HashMap::with_max_entries(1024);
-#[map("stack")]
+#[map]
 static mut STACK: StackTrace = StackTrace::with_max_entries(1024);
 
 #[entry("raw_syscalls:sys_enter")]
