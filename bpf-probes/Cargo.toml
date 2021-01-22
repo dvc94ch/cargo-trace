@@ -7,5 +7,7 @@ edition = "2018"
 [dependencies]
 anyhow = "1.0.38"
 libbpf-rs = "0.6.2"
+libc = "0.2.82"
+log = "0.4.13"
 perf-event-open-sys = "1.0.1"
 thiserror = "1.0.23"
