@@ -1,4 +1,27 @@
-pub use core::time::Duration;
+use core::ops::{Add, AddAssign};
+
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct Duration(u64);
+
+impl Duration {
+    pub fn from_nanos(nanos: u64) -> Self {
+        Self(nanos)
+    }
+}
+
+impl Add for Duration {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self {
+        Self(self.0 + other.0)
+    }
+}
+
+impl AddAssign for Duration {
+    fn add_assign(&mut self, other: Self) {
+        self.0 += other.0
+    }
+}
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Instant(u64);

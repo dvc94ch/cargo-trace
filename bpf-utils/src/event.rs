@@ -1,6 +1,7 @@
 use anyhow::{bail, Result};
 use std::process::Command;
 
+#[derive(Debug)]
 pub enum FieldFormat {
     Simple {
         signed: bool,
@@ -13,7 +14,7 @@ pub enum FieldFormat {
     },
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct EventFormat {
     fields: Vec<(String, FieldFormat)>,
 }
