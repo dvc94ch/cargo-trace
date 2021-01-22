@@ -9,3 +9,6 @@ members = [
     "examples/syscount",
     "examples/syscount/probe",
 ]
+
+[patch.crates-io]
+libbpf-rs = { git = "https://github.com/libbpf/libbpf-rs" }

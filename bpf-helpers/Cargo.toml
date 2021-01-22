@@ -7,4 +7,6 @@ edition = "2018"
 [dependencies]
 bpf-helpers-sys = { version = "0.1.0", path = "../bpf-helpers-sys" }
 bpf-macros = { version = "0.1.0", path = "../bpf-macros" }
+byteorder = { version = "1.4.2", default-features = false }
 cty = "0.2.1"
+zerocopy = { version = "0.3.0", default-features = false }

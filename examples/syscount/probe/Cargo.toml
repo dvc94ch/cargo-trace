@@ -9,6 +9,7 @@ probes = [] # required by cargo-bpf
 
 [dependencies]
 bpf-helpers = { path = "../../../bpf-helpers" }
+zerocopy = "0.3.0"
 
 [[bin]] # required by cargo-bpf
 name = "syscount_probe"
