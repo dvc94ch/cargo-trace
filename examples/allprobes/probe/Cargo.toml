@@ -1,5 +1,5 @@
 [package]
-name = "syscount-probe"
+name = "allprobes-probe"
 version = "0.1.0"
 authors = ["David Craven <david@craven.ch>"]
 edition = "2018"
@@ -9,9 +9,8 @@ probes = [] # required by cargo-bpf
 
 [dependencies]
 bpf-helpers = { path = "../../../bpf-helpers" }
-zerocopy = "0.3.0"
 
 [[bin]] # required by cargo-bpf
-name = "syscount-probe"
+name = "allprobes-probe"
 path = "src/main.rs"
 required-features = ["probes"]

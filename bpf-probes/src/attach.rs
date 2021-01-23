@@ -1,18 +1,89 @@
+use crate::{Interval, Mode};
 use anyhow::{Context, Error, Result};
 use libbpf_rs::Program;
-use perf_event_open_sys::bindings::{perf_event_attr, perf_type_id_PERF_TYPE_TRACEPOINT};
+use perf_event_open_sys::bindings::{
+    perf_event_attr, perf_event_attr__bindgen_ty_3, perf_event_attr__bindgen_ty_4,
+};
+use std::ffi::CString;
+use std::path::Path;
+use std::str::FromStr;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct AttachedProbe(u32);
 
 impl AttachedProbe {
+    pub fn kprobe(symbol: &str, offset: usize) -> Result<Self> {
+        let symbol = CString::new(symbol)?;
+        let mut attr: perf_event_attr = unsafe { std::mem::zeroed() };
+        attr.type_ = pmu_type("kprobe")?;
+        attr.config = 0;
+        attr.__bindgen_anon_3 = perf_event_attr__bindgen_ty_3 {
+            kprobe_func: symbol.as_ptr() as _,
+        };
+        attr.__bindgen_anon_4 = perf_event_attr__bindgen_ty_4 {
+            probe_offset: offset as _,
+        };
+        Self::open(attr)
+    }
+
+    pub fn kretprobe(symbol: &str) -> Result<Self> {
+        let symbol = CString::new(symbol)?;
+        let mut attr: perf_event_attr = unsafe { std::mem::zeroed() };
+        attr.type_ = pmu_type("kprobe")?;
+        attr.config = 1;
+        attr.__bindgen_anon_3 = perf_event_attr__bindgen_ty_3 {
+            kprobe_func: symbol.as_ptr() as _,
+        };
+        attr.__bindgen_anon_4 = perf_event_attr__bindgen_ty_4 { probe_offset: 0 };
+        Self::open(attr)
+    }
+
+    pub fn uprobe(_path: &Path, _symbol: &str, _offset: usize) -> Result<Self> {
+        todo!()
+    }
+
+    pub fn uretprobe(_path: &Path, _symbol: &str) -> Result<Self> {
+        todo!()
+    }
+
+    pub fn usdt(_path: &Path, _probe: &str) -> Result<Self> {
+        todo!()
+    }
+
     pub fn tracepoint(category: &str, name: &str) -> Result<Self> {
         let path = format!("/sys/kernel/debug/tracing/events/{}/{}/id", category, name);
-        let event_id: u64 = std::fs::read_to_string(path)?.trim().parse()?;
         let mut attr: perf_event_attr = unsafe { std::mem::zeroed() };
-        attr.config = event_id;
-        attr.type_ = perf_type_id_PERF_TYPE_TRACEPOINT;
+        attr.type_ = pmu_type("tracepoint")?;
+        attr.config = read(&path)?;
         Self::open(attr)
+    }
+
+    pub fn profile(_interval: &Interval) -> Result<Self> {
+        todo!()
+    }
+
+    pub fn interval(_interval: &Interval) -> Result<Self> {
+        todo!()
+    }
+
+    pub fn software(_event: &str, _count: usize) -> Result<Self> {
+        todo!()
+    }
+
+    pub fn hardware(_event: &str, _count: usize) -> Result<Self> {
+        todo!()
+    }
+
+    pub fn watchpoint(_address: usize, _length: usize, _mode: Mode) -> Result<Self> {
+        todo!()
+    }
+
+    pub fn kfunc(_func: &str) -> Result<Self> {
+        todo!()
+    }
+
+    pub fn kretfunc(_func: &str) -> Result<Self> {
+        todo!()
     }
 
     fn open(mut attr: perf_event_attr) -> Result<Self> {
@@ -76,4 +147,18 @@ impl Drop for AttachedProbe {
             log::warn!("{}", err);
         }
     }
+}
+
+fn pmu_type(event: &str) -> Result<u32> {
+    let path = format!("/sys/bus/event_source/devices/{}/type", event);
+    read(&path)
+}
+
+fn read<P, T>(path: P) -> Result<T>
+where
+    P: AsRef<Path>,
+    T: FromStr,
+    T::Err: std::error::Error + Send + Sync + 'static,
+{
+    Ok(std::fs::read_to_string(path)?.trim().parse()?)
 }

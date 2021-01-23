@@ -171,8 +171,27 @@ impl Probe {
 
     pub fn attach(&self, program: &mut Program) -> Result<AttachedProbe> {
         let probe = match self {
+            Self::Kprobe { symbol, offset } => AttachedProbe::kprobe(symbol, *offset),
+            Self::Kretprobe { symbol } => AttachedProbe::kretprobe(symbol),
+            Self::Uprobe {
+                path,
+                symbol,
+                offset,
+            } => AttachedProbe::uprobe(path, symbol, *offset),
+            Self::Uretprobe { path, symbol } => AttachedProbe::uretprobe(path, symbol),
+            Self::Usdt { path, probe } => AttachedProbe::usdt(path, probe),
             Self::Tracepoint { category, name } => AttachedProbe::tracepoint(category, name),
-            _ => todo!(),
+            Self::Profile { interval } => AttachedProbe::profile(interval),
+            Self::Interval { interval } => AttachedProbe::interval(interval),
+            Self::Software { event, count } => AttachedProbe::software(event, *count),
+            Self::Hardware { event, count } => AttachedProbe::hardware(event, *count),
+            Self::Watchpoint {
+                address,
+                length,
+                mode,
+            } => AttachedProbe::watchpoint(*address, *length, *mode),
+            Self::Kfunc { func } => AttachedProbe::kfunc(func),
+            Self::Kretfunc { func } => AttachedProbe::kretfunc(func),
         }?;
         probe.set_bpf(program)?;
         probe.enable()?;

@@ -4,7 +4,7 @@
 use bpf_helpers::{entry, map, program, HashMap, Instant, PidTgid, U32};
 use syscount_probe::SyscallInfo;
 
-program!(0xFFFFFFFE, b"GPL");
+program!(0xFFFF_FFFE, b"GPL");
 
 const FILTER_PID: Option<u32> = None;
 const FILTER_FAILED: bool = true;
@@ -25,9 +25,7 @@ fn sys_enter(_args: &SysEnter) {
         }
     }
     let time = Instant::now();
-    unsafe {
-        START.set(&pid_tgid, &time);
-    }
+    START.set(&pid_tgid, &time);
 }
 
 #[entry("raw_syscalls:sys_exit")]

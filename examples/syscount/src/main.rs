@@ -5,7 +5,7 @@ use syscount_probe::SyscallInfo;
 
 static PROBE: &[u8] = include_bytes!(concat!(
     env!("OUT_DIR"),
-    "/target/bpf/programs/syscount_probe/syscount_probe.elf",
+    "/target/bpf/programs/syscount-probe/syscount-probe.elf",
 ));
 
 fn main() -> Result<()> {

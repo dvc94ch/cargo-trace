@@ -6,6 +6,8 @@ members = [
     "bpf-helpers-sys",
     "bpf-probes",
     "bpf-utils",
+    "examples/allprobes",
+    "examples/allprobes/probe",
     "examples/syscount",
     "examples/syscount/probe",
 ]

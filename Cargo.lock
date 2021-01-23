@@ -10,6 +10,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "allprobes"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bpf",
+ "cargo-bpf",
+]
+
+[[package]]
+name = "allprobes-probe"
+version = "0.1.0"
+dependencies = [
+ "bpf-helpers",
+]
+
+[[package]]
 name = "ansi_term"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
