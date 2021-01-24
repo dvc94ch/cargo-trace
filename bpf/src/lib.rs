@@ -66,6 +66,10 @@ impl Bpf {
     {
         Ok(BpfHashMap::new(self.obj.map(map)?.unwrap()))
     }
+
+    pub fn stack_trace(&mut self, map: &str) -> Result<BpfStackTrace<'_>> {
+        Ok(BpfStackTrace::new(self.obj.map(map)?.unwrap()))
+    }
 }
 
 pub struct BpfHashMap<'a, K, V> {
@@ -108,5 +112,38 @@ where
                 .unwrap_or_default()
                 .map(move |value| (key, value))
         })
+    }
+}
+
+const BPF_MAX_STACK_DEPTH: usize = 127;
+
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[repr(C)]
+pub struct BpfStackFrames {
+    pub ip: [u64; BPF_MAX_STACK_DEPTH],
+}
+
+impl BpfStackFrames {
+    pub fn iter(&self) -> impl Iterator<Item = u64> + '_ {
+        self.ip.iter().take_while(|ip| **ip != 0).copied()
+    }
+}
+
+pub struct BpfStackTrace<'a> {
+    map: &'a mut Map,
+}
+
+impl<'a> BpfStackTrace<'a> {
+    pub fn new(map: &'a mut Map) -> Self {
+        Self { map }
+    }
+
+    pub fn raw_stack_trace(&self, id: u32) -> Result<Option<BpfStackFrames>> {
+        if let Some(bytes) = self.map.lookup(&id.to_ne_bytes()[..], MapFlags::empty())? {
+            let frames = unsafe { *(bytes.as_slice().as_ptr() as *const BpfStackFrames) };
+            Ok(Some(frames))
+        } else {
+            Ok(None)
+        }
     }
 }

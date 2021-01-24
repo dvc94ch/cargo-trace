@@ -48,17 +48,37 @@ fn main() -> Result<()> {
     }
 
     let map = bpf.hash_map::<U32, U32>("USER_COUNT")?;
+    let mut uid = None;
     for (stackid, count) in map.iter() {
+        if uid.is_none() {
+            uid = Some(stackid);
+        }
         if count.get() > 1 {
             println!("user {} {}", stackid.get(), count.get());
         }
     }
+    let map = bpf.stack_trace("USER_STACKS")?;
+    let ustack = map.raw_stack_trace(uid.unwrap().get())?.unwrap();
+    println!("ustack:");
+    for (i, ip) in ustack.iter().enumerate() {
+        println!("  {}: 0x{:x}", i, ip);
+    }
 
     let map = bpf.hash_map::<U32, U32>("KERNEL_COUNT")?;
+    let mut kid = None;
     for (stackid, count) in map.iter() {
+        if kid.is_none() {
+            kid = Some(stackid);
+        }
         if count.get() > 1 {
             println!("kernel {} {}", stackid.get(), count.get());
         }
+    }
+    let map = bpf.stack_trace("KERNEL_STACKS")?;
+    let kstack = map.raw_stack_trace(kid.unwrap().get())?.unwrap();
+    println!("kstack:");
+    for (i, ip) in kstack.iter().enumerate() {
+        println!("  {}: 0x{:x}", i, ip);
     }
     Ok(())
 }

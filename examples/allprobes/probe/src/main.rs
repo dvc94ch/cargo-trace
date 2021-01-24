@@ -56,7 +56,8 @@ fn tracepoint(_args: &SysEnter) {
 #[entry("perf_event")]
 fn profile(args: &bpf_perf_event_data) {
     increase_counter(6);
-    if let Ok(kid) = KERNEL_STACKS.stack_id(args as *const _ as *const _, StackTrace::KERNEL_STACK) {
+    if let Ok(kid) = KERNEL_STACKS.stack_id(args as *const _ as *const _, StackTrace::KERNEL_STACK)
+    {
         KERNEL_COUNT.get_or_default(&U32::new(kid), |count| {
             count.set(count.get() + 1);
         });
