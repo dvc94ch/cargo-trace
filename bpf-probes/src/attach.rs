@@ -3,8 +3,8 @@ use anyhow::{Context, Error, Result};
 use libbpf_rs::Program;
 use perf_event_open_sys::bindings::{self as sys, perf_event_attr};
 use std::ffi::CString;
-use std::path::Path;
 use std::os::unix::ffi::OsStrExt;
+use std::path::Path;
 use std::str::FromStr;
 
 #[derive(Debug, Eq, PartialEq)]
@@ -14,6 +14,7 @@ impl AttachedProbe {
     pub fn kprobe(symbol: &str, offset: usize) -> Result<Self> {
         let symbol = CString::new(symbol)?;
         let mut attr: perf_event_attr = unsafe { std::mem::zeroed() };
+        attr.size = std::mem::size_of::<perf_event_attr>() as _;
         attr.type_ = pmu_type("kprobe")?;
         attr.config = 0;
         attr.__bindgen_anon_3 = sys::perf_event_attr__bindgen_ty_3 {
@@ -28,6 +29,7 @@ impl AttachedProbe {
     pub fn kretprobe(symbol: &str) -> Result<Self> {
         let symbol = CString::new(symbol)?;
         let mut attr: perf_event_attr = unsafe { std::mem::zeroed() };
+        attr.size = std::mem::size_of::<perf_event_attr>() as _;
         attr.type_ = pmu_type("kprobe")?;
         attr.config = 1;
         attr.__bindgen_anon_3 = sys::perf_event_attr__bindgen_ty_3 {
@@ -39,6 +41,7 @@ impl AttachedProbe {
 
     pub fn uprobe(path: &Path, address: usize) -> Result<Self> {
         let mut attr: perf_event_attr = unsafe { std::mem::zeroed() };
+        attr.size = std::mem::size_of::<perf_event_attr>() as _;
         attr.type_ = pmu_type("uprobe")?;
         attr.config = 0;
         attr.__bindgen_anon_3 = sys::perf_event_attr__bindgen_ty_3 {
@@ -52,12 +55,15 @@ impl AttachedProbe {
 
     pub fn uretprobe(path: &Path, address: usize) -> Result<Self> {
         let mut attr: perf_event_attr = unsafe { std::mem::zeroed() };
+        attr.size = std::mem::size_of::<perf_event_attr>() as _;
         attr.type_ = pmu_type("uprobe")?;
         attr.config = 1;
         attr.__bindgen_anon_3 = sys::perf_event_attr__bindgen_ty_3 {
             uprobe_path: path.as_os_str().as_bytes().as_ptr() as _,
         };
-        attr.__bindgen_anon_4 = sys::perf_event_attr__bindgen_ty_4 { probe_offset: address as _ };
+        attr.__bindgen_anon_4 = sys::perf_event_attr__bindgen_ty_4 {
+            probe_offset: address as _,
+        };
         Self::open_for_any_cpu(&attr)
     }
 
@@ -68,6 +74,7 @@ impl AttachedProbe {
     pub fn tracepoint(category: &str, name: &str) -> Result<Self> {
         let path = format!("/sys/kernel/debug/tracing/events/{}/{}/id", category, name);
         let mut attr: perf_event_attr = unsafe { std::mem::zeroed() };
+        attr.size = std::mem::size_of::<perf_event_attr>() as _;
         attr.type_ = pmu_type("tracepoint")?;
         attr.config = read(&path)?;
         Self::open_for_any_cpu(&attr)
@@ -75,6 +82,7 @@ impl AttachedProbe {
 
     pub fn profile(interval: &Interval) -> Result<Vec<Self>> {
         let mut attr: perf_event_attr = unsafe { std::mem::zeroed() };
+        attr.size = std::mem::size_of::<perf_event_attr>() as _;
         attr.type_ = sys::perf_type_id_PERF_TYPE_SOFTWARE;
         attr.config = sys::perf_sw_ids_PERF_COUNT_SW_CPU_CLOCK as _;
         match interval {
@@ -103,6 +111,7 @@ impl AttachedProbe {
 
     pub fn interval(interval: &Interval) -> Result<Self> {
         let mut attr: perf_event_attr = unsafe { std::mem::zeroed() };
+        attr.size = std::mem::size_of::<perf_event_attr>() as _;
         attr.type_ = sys::perf_type_id_PERF_TYPE_SOFTWARE;
         attr.config = sys::perf_sw_ids_PERF_COUNT_SW_CPU_CLOCK as _;
         match interval {
@@ -132,6 +141,7 @@ impl AttachedProbe {
     pub fn software(event: SoftwareEvent, count: u64) -> Result<Self> {
         use SoftwareEvent::*;
         let mut attr: perf_event_attr = unsafe { std::mem::zeroed() };
+        attr.size = std::mem::size_of::<perf_event_attr>() as _;
         attr.type_ = sys::perf_type_id_PERF_TYPE_SOFTWARE;
         attr.config = match event {
             AlignmentFaults => sys::perf_sw_ids_PERF_COUNT_SW_ALIGNMENT_FAULTS,
@@ -155,6 +165,7 @@ impl AttachedProbe {
     pub fn hardware(event: HardwareEvent, count: u64) -> Result<Vec<Self>> {
         use HardwareEvent::*;
         let mut attr: perf_event_attr = unsafe { std::mem::zeroed() };
+        attr.size = std::mem::size_of::<perf_event_attr>() as _;
         attr.type_ = sys::perf_type_id_PERF_TYPE_HARDWARE;
         attr.config = match event {
             BackendStalls => sys::perf_hw_id_PERF_COUNT_HW_STALLED_CYCLES_BACKEND,
