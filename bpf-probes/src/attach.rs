@@ -1,9 +1,7 @@
-use crate::{Interval, Mode};
+use crate::{HardwareEvent, Interval, Mode, SoftwareEvent};
 use anyhow::{Context, Error, Result};
 use libbpf_rs::Program;
-use perf_event_open_sys::bindings::{
-    perf_event_attr, perf_event_attr__bindgen_ty_3, perf_event_attr__bindgen_ty_4,
-};
+use perf_event_open_sys::bindings::{self as sys, perf_event_attr};
 use std::ffi::CString;
 use std::path::Path;
 use std::str::FromStr;
@@ -17,13 +15,13 @@ impl AttachedProbe {
         let mut attr: perf_event_attr = unsafe { std::mem::zeroed() };
         attr.type_ = pmu_type("kprobe")?;
         attr.config = 0;
-        attr.__bindgen_anon_3 = perf_event_attr__bindgen_ty_3 {
+        attr.__bindgen_anon_3 = sys::perf_event_attr__bindgen_ty_3 {
             kprobe_func: symbol.as_ptr() as _,
         };
-        attr.__bindgen_anon_4 = perf_event_attr__bindgen_ty_4 {
+        attr.__bindgen_anon_4 = sys::perf_event_attr__bindgen_ty_4 {
             probe_offset: offset as _,
         };
-        Self::open(attr)
+        Self::open_for_any_cpu(&attr)
     }
 
     pub fn kretprobe(symbol: &str) -> Result<Self> {
@@ -31,11 +29,11 @@ impl AttachedProbe {
         let mut attr: perf_event_attr = unsafe { std::mem::zeroed() };
         attr.type_ = pmu_type("kprobe")?;
         attr.config = 1;
-        attr.__bindgen_anon_3 = perf_event_attr__bindgen_ty_3 {
+        attr.__bindgen_anon_3 = sys::perf_event_attr__bindgen_ty_3 {
             kprobe_func: symbol.as_ptr() as _,
         };
-        attr.__bindgen_anon_4 = perf_event_attr__bindgen_ty_4 { probe_offset: 0 };
-        Self::open(attr)
+        attr.__bindgen_anon_4 = sys::perf_event_attr__bindgen_ty_4 { probe_offset: 0 };
+        Self::open_for_any_cpu(&attr)
     }
 
     pub fn uprobe(_path: &Path, _symbol: &str, _offset: usize) -> Result<Self> {
@@ -55,23 +53,108 @@ impl AttachedProbe {
         let mut attr: perf_event_attr = unsafe { std::mem::zeroed() };
         attr.type_ = pmu_type("tracepoint")?;
         attr.config = read(&path)?;
-        Self::open(attr)
+        Self::open_for_any_cpu(&attr)
     }
 
-    pub fn profile(_interval: &Interval) -> Result<Self> {
-        todo!()
+    pub fn profile(interval: &Interval) -> Result<Vec<Self>> {
+        let mut attr: perf_event_attr = unsafe { std::mem::zeroed() };
+        attr.type_ = sys::perf_type_id_PERF_TYPE_SOFTWARE;
+        attr.config = sys::perf_sw_ids_PERF_COUNT_SW_CPU_CLOCK as _;
+        match interval {
+            Interval::Seconds(p) => {
+                attr.__bindgen_anon_1 = sys::perf_event_attr__bindgen_ty_1 {
+                    sample_period: p.as_nanos() as _,
+                };
+            }
+            Interval::Millis(p) => {
+                attr.__bindgen_anon_1 = sys::perf_event_attr__bindgen_ty_1 {
+                    sample_period: p.as_nanos() as _,
+                };
+            }
+            Interval::Micros(p) => {
+                attr.__bindgen_anon_1 = sys::perf_event_attr__bindgen_ty_1 {
+                    sample_period: p.as_nanos() as _,
+                };
+            }
+            Interval::Hz(f) => {
+                attr.set_freq(1);
+                attr.__bindgen_anon_1 = sys::perf_event_attr__bindgen_ty_1 { sample_freq: *f };
+            }
+        }
+        Self::open_for_every_cpu(&attr)
     }
 
-    pub fn interval(_interval: &Interval) -> Result<Self> {
-        todo!()
+    pub fn interval(interval: &Interval) -> Result<Self> {
+        let mut attr: perf_event_attr = unsafe { std::mem::zeroed() };
+        attr.type_ = sys::perf_type_id_PERF_TYPE_SOFTWARE;
+        attr.config = sys::perf_sw_ids_PERF_COUNT_SW_CPU_CLOCK as _;
+        match interval {
+            Interval::Seconds(p) => {
+                attr.__bindgen_anon_1 = sys::perf_event_attr__bindgen_ty_1 {
+                    sample_period: p.as_nanos() as _,
+                };
+            }
+            Interval::Millis(p) => {
+                attr.__bindgen_anon_1 = sys::perf_event_attr__bindgen_ty_1 {
+                    sample_period: p.as_nanos() as _,
+                };
+            }
+            Interval::Micros(p) => {
+                attr.__bindgen_anon_1 = sys::perf_event_attr__bindgen_ty_1 {
+                    sample_period: p.as_nanos() as _,
+                };
+            }
+            Interval::Hz(f) => {
+                attr.set_freq(1);
+                attr.__bindgen_anon_1 = sys::perf_event_attr__bindgen_ty_1 { sample_freq: *f };
+            }
+        }
+        Self::open_for_any_cpu(&attr)
     }
 
-    pub fn software(_event: &str, _count: usize) -> Result<Self> {
-        todo!()
+    pub fn software(event: SoftwareEvent, count: u64) -> Result<Self> {
+        use SoftwareEvent::*;
+        let mut attr: perf_event_attr = unsafe { std::mem::zeroed() };
+        attr.type_ = sys::perf_type_id_PERF_TYPE_SOFTWARE;
+        attr.config = match event {
+            AlignmentFaults => sys::perf_sw_ids_PERF_COUNT_SW_ALIGNMENT_FAULTS,
+            BpfOutput => sys::perf_sw_ids_PERF_COUNT_SW_BPF_OUTPUT,
+            ContextSwitches => sys::perf_sw_ids_PERF_COUNT_SW_CONTEXT_SWITCHES,
+            CpuClock => sys::perf_sw_ids_PERF_COUNT_SW_CPU_CLOCK,
+            CpuMigrations => sys::perf_sw_ids_PERF_COUNT_SW_CPU_MIGRATIONS,
+            Dummy => sys::perf_sw_ids_PERF_COUNT_SW_DUMMY,
+            EmulationFaults => sys::perf_sw_ids_PERF_COUNT_SW_EMULATION_FAULTS,
+            MajorFaults => sys::perf_sw_ids_PERF_COUNT_SW_PAGE_FAULTS_MAJ,
+            MinorFaults => sys::perf_sw_ids_PERF_COUNT_SW_PAGE_FAULTS_MIN,
+            PageFaults => sys::perf_sw_ids_PERF_COUNT_SW_PAGE_FAULTS,
+            TaskClock => sys::perf_sw_ids_PERF_COUNT_SW_TASK_CLOCK,
+        } as _;
+        attr.__bindgen_anon_1 = sys::perf_event_attr__bindgen_ty_1 {
+            sample_period: count,
+        };
+        Self::open_for_any_cpu(&attr)
     }
 
-    pub fn hardware(_event: &str, _count: usize) -> Result<Self> {
-        todo!()
+    pub fn hardware(event: HardwareEvent, count: u64) -> Result<Vec<Self>> {
+        use HardwareEvent::*;
+        let mut attr: perf_event_attr = unsafe { std::mem::zeroed() };
+        attr.type_ = sys::perf_type_id_PERF_TYPE_HARDWARE;
+        attr.config = match event {
+            BackendStalls => sys::perf_hw_id_PERF_COUNT_HW_STALLED_CYCLES_BACKEND,
+            BranchInstructions => sys::perf_hw_id_PERF_COUNT_HW_BRANCH_INSTRUCTIONS,
+            BranchMisses => sys::perf_hw_id_PERF_COUNT_HW_BRANCH_MISSES,
+            BusCycles => sys::perf_hw_id_PERF_COUNT_HW_BUS_CYCLES,
+            CacheMisses => sys::perf_hw_id_PERF_COUNT_HW_CACHE_MISSES,
+            CacheReferences => sys::perf_hw_id_PERF_COUNT_HW_CACHE_REFERENCES,
+            CpuCycles => sys::perf_hw_id_PERF_COUNT_HW_CPU_CYCLES,
+            FrontendStalls => sys::perf_hw_id_PERF_COUNT_HW_STALLED_CYCLES_FRONTEND,
+            Instructions => sys::perf_hw_id_PERF_COUNT_HW_INSTRUCTIONS,
+            RefCycles => sys::perf_hw_id_PERF_COUNT_HW_REF_CPU_CYCLES,
+        } as _;
+        attr.__bindgen_anon_1 = sys::perf_event_attr__bindgen_ty_1 {
+            sample_period: count,
+        };
+        Self::open_for_every_cpu(&attr)
     }
 
     pub fn watchpoint(_address: usize, _length: usize, _mode: Mode) -> Result<Self> {
@@ -86,13 +169,23 @@ impl AttachedProbe {
         todo!()
     }
 
-    fn open(mut attr: perf_event_attr) -> Result<Self> {
+    fn open_for_every_cpu(attr: &perf_event_attr) -> Result<Vec<Self>> {
+        bpf_utils::cpu::online_cpu_ids()?
+            .into_iter()
+            .map(|cpu| Self::open_for_cpu(attr, cpu as _))
+            .collect()
+    }
+
+    fn open_for_any_cpu(attr: &perf_event_attr) -> Result<Self> {
+        Self::open_for_cpu(attr, 0)
+    }
+
+    fn open_for_cpu(attr: &perf_event_attr, cpu: i32) -> Result<Self> {
         let pid = -1;
-        let cpu = 0;
         let group_fd = -1;
         let pfd = unsafe {
             perf_event_open_sys::perf_event_open(
-                &mut attr as *mut _,
+                attr as *const _ as *mut _,
                 pid,
                 cpu,
                 group_fd,

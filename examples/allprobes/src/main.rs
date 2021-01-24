@@ -32,9 +32,9 @@ fn main() -> Result<()> {
         //.attach_probe("usdt:/path:probe")?
         .attach_probe("tracepoint:raw_syscalls:sys_enter", "tracepoint")?
         .attach_probe("profile:hz:99", "profile")?
-        //.attach_probe("interval:ms:100", "interval")?
-        //.attach_probe("software:event:count", "software")?
-        //.attach_probe("hardware:event:count", "hardware")?
+        .attach_probe("interval:ms:100", "interval")?
+        .attach_probe("software:cs:1", "software")?
+        .attach_probe("hardware:cache-misses:1", "hardware")?
         //.attach_probe("watchpoint:address:length:mode", "watchpoint")?
         //.attach_probe("kfunc:func", "kfunc")?
         //.attach_probe("kretfunc:func", "kretfunc")?

@@ -10,7 +10,7 @@ static PROBE_COUNT: HashMap<U32, U32> = HashMap::with_max_entries(13);
 
 #[inline(always)]
 fn increase_counter(n: u32) {
-    PROBE_COUNT.get_or_default(&U32::new(0), |count| {
+    PROBE_COUNT.get_or_default(&U32::new(n), |count| {
         count.set(count.get() + 1);
     });
 }

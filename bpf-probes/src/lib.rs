@@ -59,6 +59,124 @@ impl std::fmt::Display for Mode {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum SoftwareEvent {
+    AlignmentFaults,
+    BpfOutput,
+    ContextSwitches,
+    CpuClock,
+    CpuMigrations,
+    Dummy,
+    EmulationFaults,
+    MajorFaults,
+    MinorFaults,
+    PageFaults,
+    TaskClock,
+}
+
+impl SoftwareEvent {
+    pub fn name(&self) -> &'static str {
+        use SoftwareEvent::*;
+        match self {
+            AlignmentFaults => "alignment-faults",
+            BpfOutput => "bpf-output",
+            ContextSwitches => "context-switches",
+            CpuClock => "cpu-clock",
+            CpuMigrations => "cpu-migrations",
+            Dummy => "dummy",
+            EmulationFaults => "emulation-faults",
+            MajorFaults => "major-faults",
+            MinorFaults => "minor-faults",
+            PageFaults => "page-faults",
+            TaskClock => "task-clock",
+        }
+    }
+
+    pub fn alias(&self) -> Option<&'static str> {
+        use SoftwareEvent::*;
+        match self {
+            ContextSwitches => Some("cs"),
+            CpuClock => Some("cpu"),
+            PageFaults => Some("faults"),
+            _ => None,
+        }
+    }
+
+    pub fn default_count(&self) -> u64 {
+        use SoftwareEvent::*;
+        match self {
+            ContextSwitches => 1_000,
+            CpuClock => 1_000_000,
+            MinorFaults => 100,
+            PageFaults => 100,
+            _ => 1,
+        }
+    }
+}
+
+impl std::fmt::Display for SoftwareEvent {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.name())
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum HardwareEvent {
+    BackendStalls,
+    BranchInstructions,
+    BranchMisses,
+    BusCycles,
+    CacheMisses,
+    CacheReferences,
+    CpuCycles,
+    FrontendStalls,
+    Instructions,
+    RefCycles,
+}
+
+impl HardwareEvent {
+    pub fn name(&self) -> &'static str {
+        use HardwareEvent::*;
+        match self {
+            BackendStalls => "backend-stalls",
+            BranchInstructions => "branch-instructions",
+            BranchMisses => "branch-misses",
+            BusCycles => "bus-cycles",
+            CacheMisses => "cache-misses",
+            CacheReferences => "cache-references",
+            CpuCycles => "cpu-cycles",
+            FrontendStalls => "frontend-stalls",
+            Instructions => "instructions",
+            RefCycles => "ref-cycles",
+        }
+    }
+
+    pub fn alias(&self) -> Option<&'static str> {
+        use HardwareEvent::*;
+        match self {
+            BranchInstructions => Some("branches"),
+            CpuCycles => Some("cycles"),
+            _ => None,
+        }
+    }
+
+    pub fn default_count(&self) -> u64 {
+        use HardwareEvent::*;
+        match self {
+            BranchInstructions => 100_000,
+            BranchMisses => 100_000,
+            BusCycles => 100_000,
+            _ => 1_000_000,
+        }
+    }
+}
+
+impl std::fmt::Display for HardwareEvent {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.name())
+    }
+}
+
 #[derive(Clone, Debug, Hash, PartialEq)]
 pub enum Probe {
     Kprobe {
@@ -92,12 +210,12 @@ pub enum Probe {
         interval: Interval,
     },
     Software {
-        event: String,
-        count: usize,
+        event: SoftwareEvent,
+        count: Option<u64>,
     },
     Hardware {
-        event: String,
-        count: usize,
+        event: HardwareEvent,
+        count: Option<u64>,
     },
     Watchpoint {
         address: usize,
@@ -128,8 +246,18 @@ impl std::fmt::Display for Probe {
             Tracepoint { category, name } => write!(f, "tracepoint:{}:{}", category, name),
             Profile { interval } => write!(f, "profile:{}", interval),
             Interval { interval } => write!(f, "interval:{}", interval),
-            Software { event, count } => write!(f, "software:{}:{}", event, count),
-            Hardware { event, count } => write!(f, "hardware:{}:{}", event, count),
+            Software { event, count } => write!(
+                f,
+                "software:{}:{}",
+                event,
+                count.map(|c| c.to_string()).unwrap_or_default()
+            ),
+            Hardware { event, count } => write!(
+                f,
+                "hardware:{}:{}",
+                event,
+                count.map(|c| c.to_string()).unwrap_or_default()
+            ),
             Watchpoint {
                 address,
                 length,
@@ -169,32 +297,40 @@ impl Probe {
         }
     }
 
-    pub fn attach(&self, program: &mut Program) -> Result<AttachedProbe> {
-        let probe = match self {
-            Self::Kprobe { symbol, offset } => AttachedProbe::kprobe(symbol, *offset),
-            Self::Kretprobe { symbol } => AttachedProbe::kretprobe(symbol),
+    pub fn attach(&self, program: &mut Program) -> Result<Vec<AttachedProbe>> {
+        let probes = match self {
+            Self::Kprobe { symbol, offset } => vec![AttachedProbe::kprobe(symbol, *offset)?],
+            Self::Kretprobe { symbol } => vec![AttachedProbe::kretprobe(symbol)?],
             Self::Uprobe {
                 path,
                 symbol,
                 offset,
-            } => AttachedProbe::uprobe(path, symbol, *offset),
-            Self::Uretprobe { path, symbol } => AttachedProbe::uretprobe(path, symbol),
-            Self::Usdt { path, probe } => AttachedProbe::usdt(path, probe),
-            Self::Tracepoint { category, name } => AttachedProbe::tracepoint(category, name),
-            Self::Profile { interval } => AttachedProbe::profile(interval),
-            Self::Interval { interval } => AttachedProbe::interval(interval),
-            Self::Software { event, count } => AttachedProbe::software(event, *count),
-            Self::Hardware { event, count } => AttachedProbe::hardware(event, *count),
+            } => vec![AttachedProbe::uprobe(path, symbol, *offset)?],
+            Self::Uretprobe { path, symbol } => vec![AttachedProbe::uretprobe(path, symbol)?],
+            Self::Usdt { path, probe } => vec![AttachedProbe::usdt(path, probe)?],
+            Self::Tracepoint { category, name } => vec![AttachedProbe::tracepoint(category, name)?],
+            Self::Profile { interval } => AttachedProbe::profile(interval)?,
+            Self::Interval { interval } => vec![AttachedProbe::interval(interval)?],
+            Self::Software { event, count } => {
+                let count = count.unwrap_or_else(|| event.default_count());
+                vec![AttachedProbe::software(*event, count)?]
+            }
+            Self::Hardware { event, count } => {
+                let count = count.unwrap_or_else(|| event.default_count());
+                AttachedProbe::hardware(*event, count)?
+            }
             Self::Watchpoint {
                 address,
                 length,
                 mode,
-            } => AttachedProbe::watchpoint(*address, *length, *mode),
-            Self::Kfunc { func } => AttachedProbe::kfunc(func),
-            Self::Kretfunc { func } => AttachedProbe::kretfunc(func),
-        }?;
-        probe.set_bpf(program)?;
-        probe.enable()?;
-        Ok(probe)
+            } => vec![AttachedProbe::watchpoint(*address, *length, *mode)?],
+            Self::Kfunc { func } => vec![AttachedProbe::kfunc(func)?],
+            Self::Kretfunc { func } => vec![AttachedProbe::kretfunc(func)?],
+        };
+        for probe in &probes {
+            probe.set_bpf(program)?;
+            probe.enable()?;
+        }
+        Ok(probes)
     }
 }

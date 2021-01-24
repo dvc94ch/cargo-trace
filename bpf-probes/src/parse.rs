@@ -1,4 +1,4 @@
-use crate::{Interval, Mode, Probe};
+use crate::{HardwareEvent, Interval, Mode, Probe, SoftwareEvent};
 use std::num::ParseIntError;
 use std::time::Duration;
 use thiserror::Error;
@@ -13,6 +13,8 @@ pub enum ProbeParseError {
     UnsupportedUnit(String),
     #[error("{0}")]
     ParseInt(#[from] ParseIntError),
+    #[error("{0}")]
+    UnknownEvent(String),
 }
 
 impl std::str::FromStr for Interval {
@@ -56,6 +58,49 @@ impl std::str::FromStr for Mode {
             }
         }
         Ok(mode)
+    }
+}
+
+impl std::str::FromStr for SoftwareEvent {
+    type Err = ProbeParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        use SoftwareEvent::*;
+        Ok(match s {
+            "alignment-faults" => AlignmentFaults,
+            "bpf-output" => BpfOutput,
+            "context-switches" | "cs" => ContextSwitches,
+            "cpu-clock" | "cpu" => CpuClock,
+            "cpu-migrations" => CpuMigrations,
+            "dummy" => Dummy,
+            "emulation-faults" => EmulationFaults,
+            "major-faults" => MajorFaults,
+            "minor-faults" => MinorFaults,
+            "page-faults" | "faults" => PageFaults,
+            "task-clock" => TaskClock,
+            _ => return Err(ProbeParseError::UnknownEvent(s.to_string())),
+        })
+    }
+}
+
+impl std::str::FromStr for HardwareEvent {
+    type Err = ProbeParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        use HardwareEvent::*;
+        Ok(match s {
+            "backend-stalls" => BackendStalls,
+            "branch-instructions" | "branches" => BranchInstructions,
+            "branch-misses" => BranchMisses,
+            "bus-cycles" => BusCycles,
+            "cache-misses" => CacheMisses,
+            "cache-references" => CacheReferences,
+            "cpu-cycles" | "cycles" => CpuCycles,
+            "frontend-stalls" => FrontendStalls,
+            "instructions" => Instructions,
+            "ref-cycles" => RefCycles,
+            _ => return Err(ProbeParseError::UnknownEvent(s.to_string())),
+        })
     }
 }
 
@@ -152,11 +197,13 @@ impl std::str::FromStr for Probe {
                 let event = iter
                     .next()
                     .ok_or(Expected("software:event:count"))?
-                    .to_string();
-                let count = iter
-                    .next()
-                    .ok_or(Expected("software:event:count"))?
                     .parse()?;
+                let count = iter.next().ok_or(Expected("software:event:count"))?;
+                let count = if count.is_empty() {
+                    None
+                } else {
+                    Some(count.parse()?)
+                };
                 Self::Software { event, count }
             }
             "hardware" => {
@@ -164,11 +211,13 @@ impl std::str::FromStr for Probe {
                 let event = iter
                     .next()
                     .ok_or(Expected("hardware:event:count"))?
-                    .to_string();
-                let count = iter
-                    .next()
-                    .ok_or(Expected("hardware:event:count"))?
                     .parse()?;
+                let count = iter.next().ok_or(Expected("hardware:event:count"))?;
+                let count = if count.is_empty() {
+                    None
+                } else {
+                    Some(count.parse()?)
+                };
                 Self::Hardware { event, count }
             }
             "watchpoint" => {

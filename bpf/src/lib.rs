@@ -44,7 +44,7 @@ impl BpfBuilder {
         let mut probes = vec![];
         for (probe, entry) in self.probes {
             let prog = obj.prog(entry)?.unwrap();
-            probes.push(probe.attach(prog)?);
+            probes.extend(probe.attach(prog)?);
         }
         Ok(Bpf {
             obj,
