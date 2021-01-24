@@ -7,3 +7,4 @@ edition = "2018"
 [dependencies]
 anyhow = "1.0.38"
 libc = "0.2.82"
+object = "0.23.0"

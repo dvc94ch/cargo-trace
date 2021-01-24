@@ -305,8 +305,14 @@ impl Probe {
                 path,
                 symbol,
                 offset,
-            } => vec![AttachedProbe::uprobe(path, symbol, *offset)?],
-            Self::Uretprobe { path, symbol } => vec![AttachedProbe::uretprobe(path, symbol)?],
+            } => {
+                let address = bpf_utils::elf::resolve_symbol(path, symbol, *offset)?;
+                vec![AttachedProbe::uprobe(path, address)?]
+            }
+            Self::Uretprobe { path, symbol } => {
+                let address = bpf_utils::elf::resolve_symbol(path, symbol, 0)?;
+                vec![AttachedProbe::uretprobe(path, address)?]
+            }
             Self::Usdt { path, probe } => vec![AttachedProbe::usdt(path, probe)?],
             Self::Tracepoint { category, name } => vec![AttachedProbe::tracepoint(category, name)?],
             Self::Profile { interval } => AttachedProbe::profile(interval)?,

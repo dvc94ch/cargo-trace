@@ -4,6 +4,7 @@ use libbpf_rs::Program;
 use perf_event_open_sys::bindings::{self as sys, perf_event_attr};
 use std::ffi::CString;
 use std::path::Path;
+use std::os::unix::ffi::OsStrExt;
 use std::str::FromStr;
 
 #[derive(Debug, Eq, PartialEq)]
@@ -36,12 +37,28 @@ impl AttachedProbe {
         Self::open_for_any_cpu(&attr)
     }
 
-    pub fn uprobe(_path: &Path, _symbol: &str, _offset: usize) -> Result<Self> {
-        todo!()
+    pub fn uprobe(path: &Path, address: usize) -> Result<Self> {
+        let mut attr: perf_event_attr = unsafe { std::mem::zeroed() };
+        attr.type_ = pmu_type("uprobe")?;
+        attr.config = 0;
+        attr.__bindgen_anon_3 = sys::perf_event_attr__bindgen_ty_3 {
+            uprobe_path: path.as_os_str().as_bytes().as_ptr() as _,
+        };
+        attr.__bindgen_anon_4 = sys::perf_event_attr__bindgen_ty_4 {
+            probe_offset: address as _,
+        };
+        Self::open_for_any_cpu(&attr)
     }
 
-    pub fn uretprobe(_path: &Path, _symbol: &str) -> Result<Self> {
-        todo!()
+    pub fn uretprobe(path: &Path, address: usize) -> Result<Self> {
+        let mut attr: perf_event_attr = unsafe { std::mem::zeroed() };
+        attr.type_ = pmu_type("uprobe")?;
+        attr.config = 1;
+        attr.__bindgen_anon_3 = sys::perf_event_attr__bindgen_ty_3 {
+            uprobe_path: path.as_os_str().as_bytes().as_ptr() as _,
+        };
+        attr.__bindgen_anon_4 = sys::perf_event_attr__bindgen_ty_4 { probe_offset: address as _ };
+        Self::open_for_any_cpu(&attr)
     }
 
     pub fn usdt(_path: &Path, _probe: &str) -> Result<Self> {
