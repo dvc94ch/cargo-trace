@@ -238,6 +238,12 @@ struct BpfStackFrames {
 }
 
 impl StackTrace {
+    pub const SKIP_FIELD_MASK: u64 = bpf_helpers_sys::BPF_F_SKIP_FIELD_MASK as _;
+    pub const USER_STACK: u64 = bpf_helpers_sys::BPF_F_USER_STACK as _;
+    pub const KERNEL_STACK: u64 = 0;
+    pub const FAST_STACK_CMP: u64 = bpf_helpers_sys::BPF_F_FAST_STACK_CMP as _;
+    pub const REUSE_STACKID: u64 = bpf_helpers_sys::BPF_F_REUSE_STACKID as _;
+
     pub const fn with_max_entries(cap: u32) -> Self {
         StackTrace {
             def: bpf_helpers_sys::bpf_map_def {
@@ -250,18 +256,16 @@ impl StackTrace {
         }
     }
 
-    pub unsafe fn stack_id(
-        &mut self,
-        ctx: &bpf_helpers_sys::pt_regs,
-        flag: u64,
-    ) -> Result<c_int, c_int> {
-        let ret = bpf_helpers_sys::bpf_get_stackid(
-            ctx as *const _ as *mut _,
-            &mut self.def as *mut _ as _,
-            flag,
-        );
+    pub fn stack_id(&self, ctx: *const c_void, flag: u64) -> Result<u32, c_int> {
+        let ret = unsafe {
+            bpf_helpers_sys::bpf_get_stackid(
+                ctx as *mut _,
+                &self.def as *const _ as *mut c_void,
+                flag,
+            )
+        };
         if ret >= 0 {
-            Ok(ret)
+            Ok(ret as _)
         } else {
             Err(ret)
         }

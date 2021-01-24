@@ -39,10 +39,26 @@ fn main() -> Result<()> {
         //.attach_probe("kfunc:func", "kfunc")?
         //.attach_probe("kretfunc:func", "kretfunc")?
         .load()?;
-    let map = bpf.hash_map::<U32, U32>("PROBE_COUNT")?;
+
     std::thread::sleep(Duration::from_millis(1000));
+
+    let map = bpf.hash_map::<U32, U32>("PROBE_COUNT")?;
     for (probe, count) in map.iter() {
         println!("{} {}", PROBES[probe.get() as usize], count.get());
+    }
+
+    let map = bpf.hash_map::<U32, U32>("USER_COUNT")?;
+    for (stackid, count) in map.iter() {
+        if count.get() > 1 {
+            println!("user {} {}", stackid.get(), count.get());
+        }
+    }
+
+    let map = bpf.hash_map::<U32, U32>("KERNEL_COUNT")?;
+    for (stackid, count) in map.iter() {
+        if count.get() > 1 {
+            println!("kernel {} {}", stackid.get(), count.get());
+        }
     }
     Ok(())
 }
