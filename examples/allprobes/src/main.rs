@@ -1,4 +1,5 @@
 use anyhow::Result;
+use bpf::utils::KernelSymbolTable;
 use bpf::{BpfBuilder, U32};
 use std::time::Duration;
 
@@ -76,9 +77,12 @@ fn main() -> Result<()> {
     }
     let map = bpf.stack_trace("KERNEL_STACKS")?;
     let kstack = map.raw_stack_trace(kid.unwrap().get())?.unwrap();
+    let ksyms = KernelSymbolTable::load()?;
     println!("kstack:");
     for (i, ip) in kstack.iter().enumerate() {
-        println!("  {}: 0x{:x}", i, ip);
+        let (sym, offset) = ksyms.symbol(ip as _);
+        println!("  {}: {}+{}", i, sym, offset);
+        println!("        at 0x{:x}", ip);
     }
     Ok(())
 }

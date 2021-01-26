@@ -6,6 +6,7 @@ use std::marker::PhantomData;
 use zerocopy::{AsBytes, FromBytes, LayoutVerified, Unaligned};
 
 pub mod utils {
+    pub use bpf_utils::kallsyms::{KernelSymbol, KernelSymbolTable};
     pub use bpf_utils::syscall::syscall_table;
 }
 
