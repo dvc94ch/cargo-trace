@@ -5,8 +5,9 @@ authors = ["David Craven <david@craven.ch>"]
 edition = "2018"
 
 [dependencies]
+addr2line = { path = "../../addr2line" }
 anyhow = "1.0.38"
 libc = "0.2.82"
 memmap = "0.7.0"
-object = "0.23.0"
+moria = { path = "../../moria" }
 thiserror = "1.0.23"
