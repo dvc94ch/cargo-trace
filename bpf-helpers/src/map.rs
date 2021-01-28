@@ -43,51 +43,28 @@ impl<K, V> HashMap<K, V> {
             _v: PhantomData,
         }
     }
+}
 
+impl<K, V: Clone> HashMap<K, V> {
     /// Returns a reference to the value corresponding to the key.
     #[inline]
-    pub fn get<R, F: FnOnce(Option<&mut V>) -> R>(&self, key: &K, f: F) -> R {
-        let rvalue = unsafe {
-            let value = bpf_helpers_sys::bpf_map_lookup_elem(
+    pub fn get(&self, key: &K) -> Option<V> {
+        let ptr = unsafe {
+            bpf_helpers_sys::bpf_map_lookup_elem(
                 &self.def as *const _ as *mut c_void,
                 key as *const _ as *const c_void,
-            );
-            if value.is_null() {
-                None
-            } else {
-                Some(&mut *(value as *mut V))
-            }
-        };
-        f(rvalue)
-    }
-
-    /// Returns a reference to the value corresponding to the key.
-    #[inline]
-    pub fn get_map<R, F: FnOnce(&mut V) -> R>(&self, key: &K, f: F) -> Option<R> {
-        self.get(key, |value| value.map(f))
-    }
-
-    /// Returns a reference to the value corresponding to the key.
-    #[inline]
-    pub fn get_or_default<R, F: FnOnce(&mut V) -> R>(&self, key: &K, f: F) -> R
-    where
-        V: Default,
-    {
-        self.get(key, |value| {
-            if let Some(value) = value {
-                f(value)
-            } else {
-                let mut value = V::default();
-                let res = f(&mut value);
-                self.set(key, &value);
-                res
-            }
-        })
+            )
+        } as *const V;
+        if ptr.is_null() {
+            None
+        } else {
+            Some(unsafe { (&*ptr).clone() })
+        }
     }
 
     /// Set the `value` in the map for `key`
     #[inline]
-    pub fn set(&self, key: &K, value: &V) {
+    pub fn insert(&self, key: &K, value: &V) {
         unsafe {
             bpf_helpers_sys::bpf_map_update_elem(
                 &self.def as *const _ as *mut c_void,
@@ -100,7 +77,7 @@ impl<K, V> HashMap<K, V> {
 
     /// Delete the entry indexed by `key`
     #[inline]
-    pub fn delete(&self, key: &K) {
+    pub fn remove(&self, key: &K) {
         unsafe {
             bpf_helpers_sys::bpf_map_delete_elem(
                 &self.def as *const _ as *mut c_void,

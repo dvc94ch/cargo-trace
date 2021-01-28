@@ -18,9 +18,9 @@ static KERNEL_STACKS: StackTrace = StackTrace::with_max_entries(1024);
 
 #[inline(always)]
 fn increase_counter(n: u32) {
-    PROBE_COUNT.get_or_default(&U32::new(n), |count| {
-        count.set(count.get() + 1);
-    });
+    let mut count = PROBE_COUNT.get(&U32::new(n)).unwrap_or_default();
+    count.set(count.get() + 1);
+    PROBE_COUNT.insert(&U32::new(n), &count);
 }
 
 #[entry("kprobe")]
@@ -58,14 +58,14 @@ fn profile(args: &bpf_perf_event_data) {
     increase_counter(6);
     if let Ok(kid) = KERNEL_STACKS.stack_id(args as *const _ as *const _, StackTrace::KERNEL_STACK)
     {
-        KERNEL_COUNT.get_or_default(&U32::new(kid), |count| {
-            count.set(count.get() + 1);
-        });
+        let mut count = KERNEL_COUNT.get(&U32::new(kid)).unwrap_or_default();
+        count.set(count.get() + 1);
+        KERNEL_COUNT.insert(&U32::new(kid), &count);
     }
     if let Ok(uid) = USER_STACKS.stack_id(args as *const _ as *const _, StackTrace::USER_STACK) {
-        USER_COUNT.get_or_default(&U32::new(uid), |count| {
-            count.set(count.get() + 1);
-        });
+        let mut count = USER_COUNT.get(&U32::new(uid)).unwrap_or_default();
+        count.set(count.get() + 1);
+        USER_COUNT.insert(&U32::new(uid), &count);
     }
 }
 
