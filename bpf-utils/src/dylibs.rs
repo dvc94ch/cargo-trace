@@ -2,10 +2,16 @@
 use crate::elf::{BuildId, Dwarf, Elf};
 use anyhow::Result;
 use cargo_subcommand::{CrateType, Subcommand};
+use nix::sys::ptrace;
+use nix::sys::wait::waitpid;
+use spawn_ptrace::CommandPtraceSpawn;
 use std::collections::HashMap;
+use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 pub struct BinaryInfo {
+    path: PathBuf,
     map: HashMap<BuildId, (Elf, Option<Dwarf>)>,
 }
 
@@ -29,7 +35,7 @@ impl BinaryInfo {
     pub fn new(path: &Path, search_paths: &[PathBuf]) -> Result<Self> {
         let path = std::fs::canonicalize(path)?;
         let mut map = HashMap::with_capacity(10);
-        let mut todo = vec![path];
+        let mut todo = vec![path.clone()];
         while let Some(path) = todo.pop() {
             let elf = Elf::open(&path)?;
             let build_id = elf.build_id()?;
@@ -39,7 +45,20 @@ impl BinaryInfo {
             let dwarf = elf.dwarf().ok();
             map.insert(build_id, (elf, dwarf));
         }
-        Ok(Self { map })
+        Ok(Self { path, map })
+    }
+
+    pub fn spawn(&self) -> Result<Pid> {
+        self.spawn_with_args::<_, &str>(std::iter::empty())
+    }
+
+    pub fn spawn_with_args<I, S>(&self, args: I) -> Result<Pid>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<OsStr>,
+    {
+        let child = Command::new(&self.path).args(args).spawn_ptrace()?;
+        Ok(Pid(child.id()))
     }
 }
 
@@ -115,6 +134,25 @@ fn find_library_path<S: AsRef<Path>>(paths: &[PathBuf], library: S) -> Result<Op
         }
     }
     Ok(None)
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct Pid(u32);
+
+impl Pid {
+    pub fn cont_and_wait(&self) -> Result<()> {
+        use nix::unistd::Pid;
+        let pid = Pid::from_raw(self.0 as _);
+        ptrace::cont(pid, None)?;
+        waitpid(pid, None)?;
+        Ok(())
+    }
+}
+
+impl From<Pid> for u32 {
+    fn from(pid: Pid) -> Self {
+        pid.0
+    }
 }
 
 #[cfg(test)]

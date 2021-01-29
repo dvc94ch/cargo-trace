@@ -6,7 +6,7 @@ use std::marker::PhantomData;
 use zerocopy::{AsBytes, FromBytes, LayoutVerified, Unaligned};
 
 pub mod utils {
-    pub use bpf_utils::dylibs::BinaryInfo;
+    pub use bpf_utils::dylibs::{BinaryInfo, Pid};
     pub use bpf_utils::elf::{Dwarf, Elf};
     pub use bpf_utils::kallsyms::{KernelSymbol, KernelSymbolTable};
     pub use bpf_utils::syscall::syscall_table;
@@ -14,6 +14,7 @@ pub mod utils {
 }
 
 pub struct BpfBuilder {
+    child_pid: Option<u32>,
     probes: Vec<(Probe, &'static str)>,
     new_obj: OpenObject,
 }
@@ -22,13 +23,18 @@ impl BpfBuilder {
     pub fn new(prog: &[u8]) -> Result<Self> {
         bpf_utils::rlimit::increase_memlock_rlimit()?;
         let new_obj = ObjectBuilder::default()
-            .debug(true)
             .relaxed_maps(true)
             .open_memory("bpf", prog)?;
         Ok(Self {
+            child_pid: None,
             probes: Default::default(),
             new_obj,
         })
+    }
+
+    pub fn set_child_pid<T: Into<u32>>(mut self, pid: T) -> Self {
+        self.child_pid = Some(pid.into());
+        self
     }
 
     pub fn attach_probe(mut self, probe: &str, entry: &'static str) -> Result<Self> {
@@ -47,7 +53,7 @@ impl BpfBuilder {
         let mut probes = vec![];
         for (probe, entry) in self.probes {
             let prog = obj.prog(entry)?.unwrap();
-            probes.extend(probe.attach(prog)?);
+            probes.extend(probe.attach(prog, self.child_pid)?);
         }
         Ok(Bpf {
             obj,

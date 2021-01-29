@@ -1,10 +1,25 @@
 #![no_std]
 #![no_main]
 
-use bpf_helpers::{entry, map, program, sys, HashMap, U32};
+use bpf_helpers::{entry, map, program, HashMap, StackTrace, U32};
 
 program!(0xFFFF_FFFE, b"GPL");
 
+#[map]
+static USER_COUNT: HashMap<U32, U32> = HashMap::with_max_entries(1024);
+#[map]
+static USER_STACKS: StackTrace = StackTrace::with_max_entries(1024);
+
+#[entry("perf_event")]
+fn profile(args: &bpf_perf_event_data) {
+    if let Ok(uid) = USER_STACKS.stack_id(args as *const _ as *const _, StackTrace::USER_STACK) {
+        let mut count = USER_COUNT.get(&U32::new(uid)).unwrap_or_default();
+        count.set(count.get() + 1);
+        USER_COUNT.insert(&U32::new(uid), &count);
+    }
+}
+
+/*
 #[derive(Debug, Clone, Copy, Eq, Hash, PartialEq)]
 pub enum Config {
     Pid,
@@ -26,9 +41,10 @@ static FRAMES: HashMap<Frame, U32> = HashMap::with_max_entries(1024);
 //#[map]
 //static STACK_TRACE: Array<sys::bpf_stack_build_id> = Array::with_max_entries(127);
 
+
 #[entry("perf_event")]
 fn profile(args: &bpf_perf_event_data) {
-    /*let stack_size = unsafe {
+    let stack_size = unsafe {
         sys::bpf_get_stack(
             args as *const _ as *mut _,
             stack_trace.as_mut_ptr(),
@@ -45,5 +61,5 @@ fn profile(args: &bpf_perf_event_data) {
         let mut count = FRAMES.get(&frame).unwrap_or_default();
         count.set(count.get() + 1);
         FRAMES.insert(&frame, &count);
-    }*/
-}
+    }
+}*/

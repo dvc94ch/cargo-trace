@@ -11,3 +11,6 @@ cargo-bpf = "1.3.0"
 anyhow = "1.0.38"
 bpf = { version = "0.1.0", path = "../../bpf" }
 cargo-subcommand = "0.4.10"
+
+[dev-dependencies]
+blake3 = "0.3.7"

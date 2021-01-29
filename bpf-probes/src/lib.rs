@@ -298,10 +298,10 @@ impl Probe {
         }
     }
 
-    pub fn attach(&self, program: &mut Program) -> Result<Vec<AttachedProbe>> {
+    pub fn attach(&self, program: &mut Program, pid: Option<u32>) -> Result<Vec<AttachedProbe>> {
         let probes = match self {
-            Self::Kprobe { symbol, offset } => vec![AttachedProbe::kprobe(symbol, *offset)?],
-            Self::Kretprobe { symbol } => vec![AttachedProbe::kretprobe(symbol)?],
+            Self::Kprobe { symbol, offset } => vec![AttachedProbe::kprobe(symbol, *offset, pid)?],
+            Self::Kretprobe { symbol } => vec![AttachedProbe::kretprobe(symbol, pid)?],
             Self::Uprobe {
                 path,
                 symbol,
@@ -309,32 +309,34 @@ impl Probe {
             } => {
                 let elf = Elf::open(path)?;
                 let address = elf.resolve_symbol(symbol, *offset)?.unwrap();
-                vec![AttachedProbe::uprobe(path, address)?]
+                vec![AttachedProbe::uprobe(path, address, pid)?]
             }
             Self::Uretprobe { path, symbol } => {
                 let elf = Elf::open(path)?;
                 let address = elf.resolve_symbol(symbol, 0)?.unwrap();
-                vec![AttachedProbe::uretprobe(path, address)?]
+                vec![AttachedProbe::uretprobe(path, address, pid)?]
             }
-            Self::Usdt { path, probe } => vec![AttachedProbe::usdt(path, probe)?],
-            Self::Tracepoint { category, name } => vec![AttachedProbe::tracepoint(category, name)?],
-            Self::Profile { interval } => AttachedProbe::profile(interval)?,
-            Self::Interval { interval } => vec![AttachedProbe::interval(interval)?],
+            Self::Usdt { path, probe } => vec![AttachedProbe::usdt(path, probe, pid)?],
+            Self::Tracepoint { category, name } => {
+                vec![AttachedProbe::tracepoint(category, name, pid)?]
+            }
+            Self::Profile { interval } => AttachedProbe::profile(interval, pid)?,
+            Self::Interval { interval } => vec![AttachedProbe::interval(interval, pid)?],
             Self::Software { event, count } => {
                 let count = count.unwrap_or_else(|| event.default_count());
-                vec![AttachedProbe::software(*event, count)?]
+                vec![AttachedProbe::software(*event, count, pid)?]
             }
             Self::Hardware { event, count } => {
                 let count = count.unwrap_or_else(|| event.default_count());
-                AttachedProbe::hardware(*event, count)?
+                AttachedProbe::hardware(*event, count, pid)?
             }
             Self::Watchpoint {
                 address,
                 length,
                 mode,
-            } => vec![AttachedProbe::watchpoint(*address, *length, *mode)?],
-            Self::Kfunc { func } => vec![AttachedProbe::kfunc(func)?],
-            Self::Kretfunc { func } => vec![AttachedProbe::kretfunc(func)?],
+            } => vec![AttachedProbe::watchpoint(*address, *length, *mode, pid)?],
+            Self::Kfunc { func } => vec![AttachedProbe::kfunc(func, pid)?],
+            Self::Kretfunc { func } => vec![AttachedProbe::kretfunc(func, pid)?],
         };
         for probe in &probes {
             probe.set_bpf(program)?;

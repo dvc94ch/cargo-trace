@@ -11,7 +11,7 @@ use std::str::FromStr;
 pub struct AttachedProbe(u32);
 
 impl AttachedProbe {
-    pub fn kprobe(symbol: &str, offset: usize) -> Result<Self> {
+    pub fn kprobe(symbol: &str, offset: usize, pid: Option<u32>) -> Result<Self> {
         let symbol = CString::new(symbol)?;
         let mut attr: perf_event_attr = unsafe { std::mem::zeroed() };
         attr.size = std::mem::size_of::<perf_event_attr>() as _;
@@ -23,10 +23,10 @@ impl AttachedProbe {
         attr.__bindgen_anon_4 = sys::perf_event_attr__bindgen_ty_4 {
             probe_offset: offset as _,
         };
-        Self::open_for_any_cpu(&attr)
+        Self::open_for_any_cpu(&attr, pid)
     }
 
-    pub fn kretprobe(symbol: &str) -> Result<Self> {
+    pub fn kretprobe(symbol: &str, pid: Option<u32>) -> Result<Self> {
         let symbol = CString::new(symbol)?;
         let mut attr: perf_event_attr = unsafe { std::mem::zeroed() };
         attr.size = std::mem::size_of::<perf_event_attr>() as _;
@@ -36,10 +36,10 @@ impl AttachedProbe {
             kprobe_func: symbol.as_ptr() as _,
         };
         attr.__bindgen_anon_4 = sys::perf_event_attr__bindgen_ty_4 { probe_offset: 0 };
-        Self::open_for_any_cpu(&attr)
+        Self::open_for_any_cpu(&attr, pid)
     }
 
-    pub fn uprobe(path: &Path, address: usize) -> Result<Self> {
+    pub fn uprobe(path: &Path, address: usize, pid: Option<u32>) -> Result<Self> {
         let mut attr: perf_event_attr = unsafe { std::mem::zeroed() };
         attr.size = std::mem::size_of::<perf_event_attr>() as _;
         attr.type_ = pmu_type("uprobe")?;
@@ -50,10 +50,10 @@ impl AttachedProbe {
         attr.__bindgen_anon_4 = sys::perf_event_attr__bindgen_ty_4 {
             probe_offset: address as _,
         };
-        Self::open_for_any_cpu(&attr)
+        Self::open_for_any_cpu(&attr, pid)
     }
 
-    pub fn uretprobe(path: &Path, address: usize) -> Result<Self> {
+    pub fn uretprobe(path: &Path, address: usize, pid: Option<u32>) -> Result<Self> {
         let mut attr: perf_event_attr = unsafe { std::mem::zeroed() };
         attr.size = std::mem::size_of::<perf_event_attr>() as _;
         attr.type_ = pmu_type("uprobe")?;
@@ -64,23 +64,23 @@ impl AttachedProbe {
         attr.__bindgen_anon_4 = sys::perf_event_attr__bindgen_ty_4 {
             probe_offset: address as _,
         };
-        Self::open_for_any_cpu(&attr)
+        Self::open_for_any_cpu(&attr, pid)
     }
 
-    pub fn usdt(_path: &Path, _probe: &str) -> Result<Self> {
+    pub fn usdt(_path: &Path, _probe: &str, _pid: Option<u32>) -> Result<Self> {
         todo!()
     }
 
-    pub fn tracepoint(category: &str, name: &str) -> Result<Self> {
+    pub fn tracepoint(category: &str, name: &str, pid: Option<u32>) -> Result<Self> {
         let path = format!("/sys/kernel/debug/tracing/events/{}/{}/id", category, name);
         let mut attr: perf_event_attr = unsafe { std::mem::zeroed() };
         attr.size = std::mem::size_of::<perf_event_attr>() as _;
         attr.type_ = pmu_type("tracepoint")?;
         attr.config = read(&path)?;
-        Self::open_for_any_cpu(&attr)
+        Self::open_for_any_cpu(&attr, pid)
     }
 
-    pub fn profile(interval: &Interval) -> Result<Vec<Self>> {
+    pub fn profile(interval: &Interval, pid: Option<u32>) -> Result<Vec<Self>> {
         let mut attr: perf_event_attr = unsafe { std::mem::zeroed() };
         attr.size = std::mem::size_of::<perf_event_attr>() as _;
         attr.type_ = sys::perf_type_id_PERF_TYPE_SOFTWARE;
@@ -106,10 +106,10 @@ impl AttachedProbe {
                 attr.__bindgen_anon_1 = sys::perf_event_attr__bindgen_ty_1 { sample_freq: *f };
             }
         }
-        Self::open_for_every_cpu(&attr)
+        Self::open_for_every_cpu(&attr, pid)
     }
 
-    pub fn interval(interval: &Interval) -> Result<Self> {
+    pub fn interval(interval: &Interval, pid: Option<u32>) -> Result<Self> {
         let mut attr: perf_event_attr = unsafe { std::mem::zeroed() };
         attr.size = std::mem::size_of::<perf_event_attr>() as _;
         attr.type_ = sys::perf_type_id_PERF_TYPE_SOFTWARE;
@@ -135,10 +135,10 @@ impl AttachedProbe {
                 attr.__bindgen_anon_1 = sys::perf_event_attr__bindgen_ty_1 { sample_freq: *f };
             }
         }
-        Self::open_for_any_cpu(&attr)
+        Self::open_for_any_cpu(&attr, pid)
     }
 
-    pub fn software(event: SoftwareEvent, count: u64) -> Result<Self> {
+    pub fn software(event: SoftwareEvent, count: u64, pid: Option<u32>) -> Result<Self> {
         use SoftwareEvent::*;
         let mut attr: perf_event_attr = unsafe { std::mem::zeroed() };
         attr.size = std::mem::size_of::<perf_event_attr>() as _;
@@ -159,10 +159,10 @@ impl AttachedProbe {
         attr.__bindgen_anon_1 = sys::perf_event_attr__bindgen_ty_1 {
             sample_period: count,
         };
-        Self::open_for_any_cpu(&attr)
+        Self::open_for_any_cpu(&attr, pid)
     }
 
-    pub fn hardware(event: HardwareEvent, count: u64) -> Result<Vec<Self>> {
+    pub fn hardware(event: HardwareEvent, count: u64, pid: Option<u32>) -> Result<Vec<Self>> {
         use HardwareEvent::*;
         let mut attr: perf_event_attr = unsafe { std::mem::zeroed() };
         attr.size = std::mem::size_of::<perf_event_attr>() as _;
@@ -182,34 +182,39 @@ impl AttachedProbe {
         attr.__bindgen_anon_1 = sys::perf_event_attr__bindgen_ty_1 {
             sample_period: count,
         };
-        Self::open_for_every_cpu(&attr)
+        Self::open_for_every_cpu(&attr, pid)
     }
 
-    pub fn watchpoint(_address: usize, _length: usize, _mode: Mode) -> Result<Self> {
+    pub fn watchpoint(
+        _address: usize,
+        _length: usize,
+        _mode: Mode,
+        _pid: Option<u32>,
+    ) -> Result<Self> {
         todo!()
     }
 
-    pub fn kfunc(_func: &str) -> Result<Self> {
+    pub fn kfunc(_func: &str, _pid: Option<u32>) -> Result<Self> {
         todo!()
     }
 
-    pub fn kretfunc(_func: &str) -> Result<Self> {
+    pub fn kretfunc(_func: &str, _pid: Option<u32>) -> Result<Self> {
         todo!()
     }
 
-    fn open_for_every_cpu(attr: &perf_event_attr) -> Result<Vec<Self>> {
+    fn open_for_every_cpu(attr: &perf_event_attr, pid: Option<u32>) -> Result<Vec<Self>> {
         bpf_utils::cpu::online_cpu_ids()?
             .into_iter()
-            .map(|cpu| Self::open_for_cpu(attr, cpu as _))
+            .map(|cpu| Self::open_for_cpu(attr, pid, cpu as _))
             .collect()
     }
 
-    fn open_for_any_cpu(attr: &perf_event_attr) -> Result<Self> {
-        Self::open_for_cpu(attr, 0)
+    fn open_for_any_cpu(attr: &perf_event_attr, pid: Option<u32>) -> Result<Self> {
+        Self::open_for_cpu(attr, pid, 0)
     }
 
-    fn open_for_cpu(attr: &perf_event_attr, cpu: i32) -> Result<Self> {
-        let pid = -1;
+    fn open_for_cpu(attr: &perf_event_attr, pid: Option<u32>, cpu: i32) -> Result<Self> {
+        let pid = pid.map(|pid| pid as i32).unwrap_or(-1);
         let group_fd = -1;
         let pfd = unsafe {
             perf_event_open_sys::perf_event_open(

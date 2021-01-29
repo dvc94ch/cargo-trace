@@ -1,6 +1,6 @@
 use anyhow::Result;
 use bpf::utils::{escalate_if_needed, BinaryInfo};
-use bpf::BpfBuilder;
+use bpf::{BpfBuilder, U32};
 use cargo_subcommand::Subcommand;
 
 static PROBE: &[u8] = include_bytes!(concat!(
@@ -16,10 +16,24 @@ fn main() -> Result<()> {
     let cmd = Subcommand::new(args, "flamegraph", |_, _| Ok(false))?;
     let info = BinaryInfo::from_cargo_subcommand(&cmd)?;
     println!("{}", info.to_string());
+    let pid = info.spawn()?;
 
-    let _bpf = BpfBuilder::new(PROBE)?
+    let mut bpf = BpfBuilder::new(PROBE)?
+        .set_child_pid(pid)
         .attach_probe("profile:hz:99", "profile")?
         .load()?;
+
+    pid.cont_and_wait()?;
+
+    let user_count = bpf.hash_map::<U32, U32>("USER_COUNT")?.iter().collect::<Vec<_>>();
+    let user_stacks = bpf.stack_trace("USER_STACKS")?;
+    for (stackid, count) in user_count {
+        let ustack = user_stacks.raw_stack_trace(stackid.get())?.unwrap();
+        println!("ustack observed {} times:", count);
+        for (i, ip) in ustack.iter().enumerate() {
+            println!("  {}: 0x{:x}", i, ip);
+        }
+    }
 
     Ok(())
 }

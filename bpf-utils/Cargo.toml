@@ -11,4 +11,6 @@ cargo-subcommand = "0.4.10"
 libc = "0.2.84"
 memmap = "0.7.0"
 moria = { path = "../../moria" }
+nix = "0.19.1"
+spawn-ptrace = "0.1.2"
 thiserror = "1.0.23"
