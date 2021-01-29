@@ -5,55 +5,56 @@ use object::elf::FileHeader64;
 use object::read::elf::{Dyn, ElfFile, ProgramHeader};
 use object::{NativeEndian, Object, ObjectSymbol};
 use std::fs::File;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 #[error("Offset `{1}` out of range of `{1}`")]
 pub struct OffsetOutOfRange(String, usize);
 
-pub struct Dwarf {
+struct InnerElf {
     _file: File,
     _mmap: Mmap,
     obj: ElfFile<'static, FileHeader64<NativeEndian>>,
-    ctx: Context<gimli::EndianRcSlice<gimli::RunTimeEndian>>,
+    path: PathBuf,
 }
 
-impl Dwarf {
-    pub fn open_elf<T: AsRef<Path>>(path: T) -> Result<Self> {
-        let file = File::open(path)?;
+#[derive(Clone)]
+pub struct Elf(Arc<InnerElf>);
+
+impl Elf {
+    pub fn open<T: AsRef<Path>>(path: T) -> Result<Self> {
+        let file = File::open(path.as_ref())?;
         let mmap = unsafe { Mmap::map(&file) }?;
         let data: &'static [u8] = unsafe { std::slice::from_raw_parts(mmap.as_ptr(), mmap.len()) };
         let obj = ElfFile::parse(data)?;
-        let ctx = Context::new(&obj)?;
-        Ok(Self {
+        Ok(Self(Arc::new(InnerElf {
             _file: file,
             _mmap: mmap,
             obj,
-            ctx,
-        })
+            path: path.as_ref().to_owned(),
+        })))
     }
 
-    pub fn open_dwarf<T: AsRef<Path>>(path: T) -> Result<Self> {
-        let me = Self::open_elf(path.as_ref())?;
-        if me.obj.has_debug_symbols() {
-            return Ok(me);
+    pub fn path(&self) -> &Path {
+        &self.0.path
+    }
+
+    pub fn dwarf(&self) -> Result<Dwarf> {
+        if self.0.obj.has_debug_symbols() {
+            return Dwarf::new(self.clone());
         }
-        let debug_path = moria::locate_debug_symbols(&me.obj, path.as_ref())?;
-        Self::open_elf(&debug_path)
-    }
-
-    pub fn open_build_id(id: &[u8]) -> Result<Self> {
-        let debug_path = moria::locate_debug_build_id(id)?;
-        Self::open_elf(&debug_path)
+        let debug_path = moria::locate_debug_symbols(&self.0.obj, self.path())?;
+        Dwarf::open(&debug_path)
     }
 
     pub fn build_id(&self) -> Result<Option<&[u8]>> {
-        Ok(self.obj.build_id()?)
+        Ok(self.0.obj.build_id()?)
     }
 
     pub fn resolve_symbol(&self, symbol: &str, offset: usize) -> Result<Option<usize>> {
-        for sym in self.obj.symbols() {
+        for sym in self.0.obj.symbols() {
             if sym.name() == Ok(symbol) {
                 if offset < sym.size() as usize {
                     return Ok(Some(sym.address() as usize + offset));
@@ -68,7 +69,7 @@ impl Dwarf {
     // TODO do instruction pointers correspond to a symbol or a symbol + offset?
     // are symbols ordered by address?
     pub fn resolve_address(&self, address: usize) -> Result<Option<&str>> {
-        for sym in self.obj.symbols() {
+        for sym in self.0.obj.symbols() {
             if sym.address() == address as _ {
                 return Ok(Some(sym.name()?));
             }
@@ -76,14 +77,10 @@ impl Dwarf {
         Ok(None)
     }
 
-    pub fn resolve_location(&self, address: usize) -> Result<Option<Location<'_>>> {
-        Ok(self.ctx.find_location(address as _)?)
-    }
-
     pub fn dynamic(&self) -> Result<Vec<String>> {
         let mut libs = vec![];
-        for segment in self.obj.raw_segments() {
-            if let Some(entries) = segment.dynamic(NativeEndian, self.obj.data())? {
+        for segment in self.0.obj.raw_segments() {
+            if let Some(entries) = segment.dynamic(NativeEndian, self.0.obj.data())? {
                 let mut strtab = 0;
                 let mut strsz = 0;
                 let mut dt_needed = vec![];
@@ -96,9 +93,9 @@ impl Dwarf {
                     }
                 }
                 let mut dynstr = object::StringTable::default();
-                for segment in self.obj.raw_segments() {
+                for segment in self.0.obj.raw_segments() {
                     if let Ok(Some(data)) =
-                        segment.data_range(NativeEndian, self.obj.data(), strtab, strsz)
+                        segment.data_range(NativeEndian, self.0.obj.data(), strtab, strsz)
                     {
                         dynstr = object::StringTable::new(data);
                         break;
@@ -116,6 +113,35 @@ impl Dwarf {
     }
 }
 
+pub struct Dwarf {
+    elf: Elf,
+    ctx: Context<gimli::EndianRcSlice<gimli::RunTimeEndian>>,
+}
+
+impl Dwarf {
+    pub fn new(elf: Elf) -> Result<Self> {
+        let ctx = Context::new(&elf.0.obj)?;
+        Ok(Self { elf, ctx })
+    }
+
+    pub fn open<T: AsRef<Path>>(path: T) -> Result<Self> {
+        Self::new(Elf::open(path)?)
+    }
+
+    pub fn open_build_id(id: &[u8]) -> Result<Self> {
+        let debug_path = moria::locate_debug_build_id(id)?;
+        Self::open(debug_path)
+    }
+
+    pub fn path(&self) -> &Path {
+        self.elf.path()
+    }
+
+    pub fn resolve_location(&self, address: usize) -> Result<Option<Location<'_>>> {
+        Ok(self.ctx.find_location(address as _)?)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -125,13 +151,14 @@ mod tests {
     #[test]
     fn test_elf() -> Result<()> {
         let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(PATH);
-        let dwarf = Dwarf::open_dwarf(&path)?;
-        let address = dwarf.resolve_symbol("main", 0)?.unwrap();
-        let symbol = dwarf.resolve_address(address)?.unwrap();
+        let elf = Elf::open(&path)?;
+        let address = elf.resolve_symbol("main", 0)?.unwrap();
+        let symbol = elf.resolve_address(address)?.unwrap();
         assert_eq!(symbol, "main");
         println!("address of main: 0x{:x}", address);
-        println!("build id: {:?}", dwarf.build_id()?.unwrap());
-        println!("dynamic: {:?}", dwarf.dynamic()?);
+        println!("build id: {:?}", elf.build_id()?.unwrap());
+        println!("dynamic: {:?}", elf.dynamic()?);
+        let dwarf = elf.dwarf()?;
         let location = dwarf.resolve_location(0x5340)?.unwrap();
         println!(
             "location: {:?}:{:?}:{:?}",
