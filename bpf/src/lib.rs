@@ -6,8 +6,11 @@ use std::marker::PhantomData;
 use zerocopy::{AsBytes, FromBytes, LayoutVerified, Unaligned};
 
 pub mod utils {
+    pub use bpf_utils::dylibs::BinaryInfo;
+    pub use bpf_utils::elf::{Dwarf, Elf};
     pub use bpf_utils::kallsyms::{KernelSymbol, KernelSymbolTable};
     pub use bpf_utils::syscall::syscall_table;
+    pub use sudo::escalate_if_needed;
 }
 
 pub struct BpfBuilder {
@@ -17,7 +20,6 @@ pub struct BpfBuilder {
 
 impl BpfBuilder {
     pub fn new(prog: &[u8]) -> Result<Self> {
-        sudo::escalate_if_needed().unwrap();
         bpf_utils::rlimit::increase_memlock_rlimit()?;
         let new_obj = ObjectBuilder::default()
             .debug(true)

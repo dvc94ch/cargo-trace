@@ -9,11 +9,11 @@ members = [
     "examples/allprobes",
     "examples/allprobes/probe",
     "examples/rust-analysis",
-    "examples/rust-analysis/hello-world",
     "examples/rust-analysis/probe",
     "examples/syscount",
     "examples/syscount/probe",
 ]
 
 [patch.crates-io]
+cargo-subcommand = { path = "../cargo-subcommand" }
 object = { path = "../object" }

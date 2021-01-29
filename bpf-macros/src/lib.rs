@@ -25,14 +25,11 @@ impl Parse for Args {
 ///
 /// # Example
 ///
-/// ```no_run
+/// ```compile_fail
 /// #![no_std]
 /// #![no_main]
-/// # #![feature(lang_items)]
 /// # use bpf_macros::program;
 /// program!(0xFFFFFFFE, b"GPL");
-/// # #[lang = "eh_personality"]
-/// # extern "C" fn eh_personality() {}
 /// ```
 #[proc_macro]
 pub fn program(input: TokenStream) -> TokenStream {

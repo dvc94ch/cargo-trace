@@ -8,7 +8,7 @@
 //!    - the libbpf program is attached with `ioctl PERF_EVENT_IOC_SET_BPF`.
 //! 5. Read bpf program maps (libbpf-rs).
 use anyhow::Result;
-use bpf_utils::elf::Dwarf;
+use bpf_utils::elf::Elf;
 use libbpf_rs::{Program, ProgramAttachType, ProgramType};
 use std::path::PathBuf;
 use std::time::Duration;
@@ -307,13 +307,13 @@ impl Probe {
                 symbol,
                 offset,
             } => {
-                let dwarf = Dwarf::open_elf(path)?;
-                let address = dwarf.resolve_symbol(symbol, *offset)?.unwrap();
+                let elf = Elf::open(path)?;
+                let address = elf.resolve_symbol(symbol, *offset)?.unwrap();
                 vec![AttachedProbe::uprobe(path, address)?]
             }
             Self::Uretprobe { path, symbol } => {
-                let dwarf = Dwarf::open_elf(path)?;
-                let address = dwarf.resolve_symbol(symbol, 0)?.unwrap();
+                let elf = Elf::open(path)?;
+                let address = elf.resolve_symbol(symbol, 0)?.unwrap();
                 vec![AttachedProbe::uretprobe(path, address)?]
             }
             Self::Usdt { path, probe } => vec![AttachedProbe::usdt(path, probe)?],

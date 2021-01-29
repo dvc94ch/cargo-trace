@@ -17,18 +17,18 @@ pub struct Frame {
 }
 
 // TODO use array
-#[map]
-static CONFIG: HashMap<Config, U32> = HashMap::with_max_entries(1);
+//#[map]
+//static CONFIG: HashMap<Config, U32> = HashMap::with_max_entries(1);
 // TODO use per cpu lru map
 #[map]
 static FRAMES: HashMap<Frame, U32> = HashMap::with_max_entries(1024);
 // TODO use array
-#[map]
-static STACK_TRACE: Array<sys::bpf_stack_build_id> = Array::with_max_entries(127);
+//#[map]
+//static STACK_TRACE: Array<sys::bpf_stack_build_id> = Array::with_max_entries(127);
 
 #[entry("perf_event")]
 fn profile(args: &bpf_perf_event_data) {
-    let stack_size = unsafe {
+    /*let stack_size = unsafe {
         sys::bpf_get_stack(
             args as *const _ as *mut _,
             stack_trace.as_mut_ptr(),
@@ -45,5 +45,5 @@ fn profile(args: &bpf_perf_event_data) {
         let mut count = FRAMES.get(&frame).unwrap_or_default();
         count.set(count.get() + 1);
         FRAMES.insert(&frame, &count);
-    }
+    }*/
 }
