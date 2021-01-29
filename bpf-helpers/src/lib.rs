@@ -7,6 +7,7 @@ mod time;
 pub use crate::map::*;
 pub use crate::pid::*;
 pub use crate::time::*;
+pub use bpf_helpers_sys as sys;
 pub use bpf_macros::*;
 pub use cty;
 

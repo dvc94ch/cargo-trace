@@ -9,6 +9,6 @@ anyhow = "1.0.38"
 bpf-helpers = { version = "0.1.0", path = "../bpf-helpers" }
 bpf-probes = { version = "0.1.0", path = "../bpf-probes" }
 bpf-utils = { version = "0.1.0", path = "../bpf-utils" }
-libbpf-rs = "0.6.2"
+libbpf-rs = "0.7.0"
 sudo = "0.6.0"
 zerocopy = "0.3.0"

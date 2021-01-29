@@ -1,7 +1,9 @@
 use addr2line::{gimli, object, Context, Location};
 use anyhow::Result;
 use memmap::Mmap;
-use object::{Object, ObjectSymbol};
+use object::elf::FileHeader64;
+use object::read::elf::{Dyn, ElfFile, ProgramHeader};
+use object::{NativeEndian, Object, ObjectSymbol};
 use std::fs::File;
 use std::path::Path;
 use thiserror::Error;
@@ -13,7 +15,7 @@ pub struct OffsetOutOfRange(String, usize);
 pub struct Dwarf {
     _file: File,
     _mmap: Mmap,
-    obj: object::File<'static>,
+    obj: ElfFile<'static, FileHeader64<NativeEndian>>,
     ctx: Context<gimli::EndianRcSlice<gimli::RunTimeEndian>>,
 }
 
@@ -22,7 +24,7 @@ impl Dwarf {
         let file = File::open(path)?;
         let mmap = unsafe { Mmap::map(&file) }?;
         let data: &'static [u8] = unsafe { std::slice::from_raw_parts(mmap.as_ptr(), mmap.len()) };
-        let obj = object::File::parse(data)?;
+        let obj = ElfFile::parse(data)?;
         let ctx = Context::new(&obj)?;
         Ok(Self {
             _file: file,
@@ -44,6 +46,10 @@ impl Dwarf {
     pub fn open_build_id(id: &[u8]) -> Result<Self> {
         let debug_path = moria::locate_debug_build_id(id)?;
         Self::open_elf(&debug_path)
+    }
+
+    pub fn build_id(&self) -> Result<Option<&[u8]>> {
+        Ok(self.obj.build_id()?)
     }
 
     pub fn resolve_symbol(&self, symbol: &str, offset: usize) -> Result<Option<usize>> {
@@ -72,5 +78,66 @@ impl Dwarf {
 
     pub fn resolve_location(&self, address: usize) -> Result<Option<Location<'_>>> {
         Ok(self.ctx.find_location(address as _)?)
+    }
+
+    pub fn dynamic(&self) -> Result<Vec<String>> {
+        let mut libs = vec![];
+        for segment in self.obj.raw_segments() {
+            if let Some(entries) = segment.dynamic(NativeEndian, self.obj.data())? {
+                let mut strtab = 0;
+                let mut strsz = 0;
+                let mut dt_needed = vec![];
+                for entry in entries {
+                    match entry.d_tag(NativeEndian) as u32 {
+                        object::elf::DT_STRTAB => strtab = entry.d_val(NativeEndian),
+                        object::elf::DT_STRSZ => strsz = entry.d_val(NativeEndian),
+                        object::elf::DT_NEEDED => dt_needed.push(entry.d_val(NativeEndian)),
+                        _ => {}
+                    }
+                }
+                let mut dynstr = object::StringTable::default();
+                for segment in self.obj.raw_segments() {
+                    if let Ok(Some(data)) =
+                        segment.data_range(NativeEndian, self.obj.data(), strtab, strsz)
+                    {
+                        dynstr = object::StringTable::new(data);
+                        break;
+                    }
+                }
+                for needed in dt_needed {
+                    if let Ok(lib) = dynstr.get(needed as _) {
+                        let lib = std::str::from_utf8(lib)?;
+                        libs.push(lib.to_string());
+                    }
+                }
+            }
+        }
+        Ok(libs)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const PATH: &str = "../target/debug/hello-world";
+
+    #[test]
+    fn test_elf() -> Result<()> {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(PATH);
+        let dwarf = Dwarf::open_dwarf(&path)?;
+        let address = dwarf.resolve_symbol("main", 0)?.unwrap();
+        let symbol = dwarf.resolve_address(address)?.unwrap();
+        assert_eq!(symbol, "main");
+        println!("address of main: 0x{:x}", address);
+        println!("build id: {:?}", dwarf.build_id()?.unwrap());
+        println!("dynamic: {:?}", dwarf.dynamic()?);
+        let location = dwarf.resolve_location(0x5340)?.unwrap();
+        println!(
+            "location: {:?}:{:?}:{:?}",
+            location.file, location.line, location.column
+        );
+        assert_eq!(location.line.unwrap(), 1);
+        Ok(())
     }
 }

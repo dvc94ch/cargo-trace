@@ -8,9 +8,12 @@ members = [
     "bpf-utils",
     "examples/allprobes",
     "examples/allprobes/probe",
+    "examples/rust-analysis",
+    "examples/rust-analysis/hello-world",
+    "examples/rust-analysis/probe",
     "examples/syscount",
     "examples/syscount/probe",
 ]
 
 [patch.crates-io]
-libbpf-rs = { git = "https://github.com/libbpf/libbpf-rs" }
+object = { path = "../object" }

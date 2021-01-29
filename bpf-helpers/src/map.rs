@@ -46,6 +46,19 @@ impl<K, V> HashMap<K, V> {
 }
 
 impl<K, V: Clone> HashMap<K, V> {
+    #[inline]
+    pub unsafe fn get_ptr(&self, key: &K) -> Option<&mut V> {
+        let ptr = bpf_helpers_sys::bpf_map_lookup_elem(
+            &self.def as *const _ as *mut c_void,
+            key as *const _ as *const c_void,
+        ) as *mut V;
+        if ptr.is_null() {
+            None
+        } else {
+            Some(&mut *ptr)
+        }
+    }
+
     /// Returns a reference to the value corresponding to the key.
     #[inline]
     pub fn get(&self, key: &K) -> Option<V> {

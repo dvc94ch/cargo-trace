@@ -7,7 +7,10 @@ edition = "2018"
 [dependencies]
 addr2line = { path = "../../addr2line" }
 anyhow = "1.0.38"
-libc = "0.2.82"
+libc = "0.2.83"
 memmap = "0.7.0"
 moria = { path = "../../moria" }
 thiserror = "1.0.23"
+
+[dev-dependencies]
+hello-world = { path = "../examples/rust-analysis/hello-world" }
