@@ -25,7 +25,10 @@ fn main() -> Result<()> {
 
     pid.cont_and_wait()?;
 
-    let user_count = bpf.hash_map::<U32, U32>("USER_COUNT")?.iter().collect::<Vec<_>>();
+    let user_count = bpf
+        .hash_map::<U32, U32>("USER_COUNT")?
+        .iter()
+        .collect::<Vec<_>>();
     let user_stacks = bpf.stack_trace("USER_STACKS")?;
     for (stackid, count) in user_count {
         let ustack = user_stacks.raw_stack_trace(stackid.get())?.unwrap();

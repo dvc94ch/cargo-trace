@@ -9,6 +9,7 @@ static PROBE: &[u8] = include_bytes!(concat!(
 ));
 
 fn main() -> Result<()> {
+    bpf::utils::escalate_if_needed().unwrap();
     let mut bpf = BpfBuilder::new(PROBE)?
         .attach_probe("tracepoint:raw_syscalls:sys_enter", "sys_enter")?
         .attach_probe("tracepoint:raw_syscalls:sys_exit", "sys_exit")?

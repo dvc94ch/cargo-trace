@@ -25,6 +25,7 @@ static PROBES: &[&str] = &[
 ];
 
 fn main() -> Result<()> {
+    bpf::utils::escalate_if_needed().unwrap();
     let mut bpf = BpfBuilder::new(PROBE)?
         .attach_probe("kprobe:finish_task_switch", "kprobe")?
         .attach_probe("kretprobe:finish_task_switch", "kretprobe")?

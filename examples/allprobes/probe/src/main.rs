@@ -1,7 +1,7 @@
 #![no_std]
 #![no_main]
 
-use bpf_helpers::{entry, map, program, HashMap, StackTrace, U32};
+use bpf_helpers::{entry, map, program, sys, Array, HashMap, StackTrace, U32};
 
 program!(0xFFFF_FFFE, b"GPL");
 
@@ -15,6 +15,8 @@ static USER_STACKS: StackTrace = StackTrace::with_max_entries(1024);
 static KERNEL_COUNT: HashMap<U32, U32> = HashMap::with_max_entries(1024);
 #[map]
 static KERNEL_STACKS: StackTrace = StackTrace::with_max_entries(1024);
+#[map]
+static USER_STACKS_BUILDID: Array<[sys::bpf_stack_build_id; 127]> = Array::with_max_entries(1);
 
 #[inline(always)]
 fn increase_counter(n: u32) {
@@ -66,6 +68,17 @@ fn profile(args: &bpf_perf_event_data) {
         let mut count = USER_COUNT.get(&U32::new(uid)).unwrap_or_default();
         count.set(count.get() + 1);
         USER_COUNT.insert(&U32::new(uid), &count);
+
+        if count.get() == 0 {
+            /*unsafe {
+                sys::bpf_get_stack(
+                    args as *const _ as *mut _,
+                    USER_STACKS_BUILDID.lookup(&0) as *mut _,
+                    core::mem::size_of::<[sys::bpf_stack_build_id; 127]>() as _,
+                    (sys::BPF_F_USER_STACK | sys::BPF_F_USER_BUILD_ID) as _,
+                );
+            }*/
+        }
     }
 }
 
