@@ -15,5 +15,5 @@ members = [
 ]
 
 [patch.crates-io]
-cargo-subcommand = { path = "../cargo-subcommand" }
+addr2line = { path = "../addr2line" }
 object = { path = "../object" }

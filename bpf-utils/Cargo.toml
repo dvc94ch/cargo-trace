@@ -5,12 +5,12 @@ authors = ["David Craven <david@craven.ch>"]
 edition = "2018"
 
 [dependencies]
-addr2line = { path = "../../addr2line" }
+addr2line = "0.14.1"
 anyhow = "1.0.38"
-cargo-subcommand = "0.4.10"
-libc = "0.2.84"
+cargo-subcommand = "0.5.0"
+libc = "0.2.86"
+locate-dwarf = "0.1.0"
 memmap = "0.7.0"
-moria = { path = "../../moria" }
 nix = "0.19.1"
 spawn-ptrace = "0.1.2"
 thiserror = "1.0.23"

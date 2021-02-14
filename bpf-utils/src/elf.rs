@@ -45,7 +45,7 @@ impl Elf {
         if self.0.obj.has_debug_symbols() {
             return Dwarf::new(self.clone());
         }
-        let debug_path = moria::locate_debug_symbols(&self.0.obj, self.path())?;
+        let debug_path = locate_dwarf::locate_debug_symbols(&self.0.obj, self.path())?;
         Dwarf::open(&debug_path)
     }
 
@@ -129,7 +129,7 @@ impl Dwarf {
     }
 
     pub fn open_build_id(id: &[u8]) -> Result<Self> {
-        let debug_path = moria::locate_debug_build_id(id)?;
+        let debug_path = locate_dwarf::locate_debug_build_id(id)?;
         Self::open(debug_path)
     }
 

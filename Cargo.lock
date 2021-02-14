@@ -125,9 +125,9 @@ dependencies = [
 
 [[package]]
 name = "bindgen"
-version = "0.56.0"
+version = "0.57.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2da379dbebc0b76ef63ca68d8fc6e71c0f13e59432e0987e508c1820e6ab5239"
+checksum = "fd4865004a46a0aafb2a0a5eb19d3c9fc46ee5f063a6cfc605c69ac9ecf5263d"
 dependencies = [
  "bitflags",
  "cexpr",
@@ -195,7 +195,7 @@ dependencies = [
 name = "bpf-helpers-sys"
 version = "0.1.0"
 dependencies = [
- "bindgen 0.56.0",
+ "bindgen 0.57.0",
  "cty",
  "proc-macro2",
  "quote",
@@ -248,8 +248,8 @@ dependencies = [
  "anyhow",
  "cargo-subcommand",
  "libc",
+ "locate-dwarf",
  "memmap",
- "moria",
  "nix 0.19.1",
  "spawn-ptrace",
  "thiserror",
@@ -294,7 +294,9 @@ dependencies = [
 
 [[package]]
 name = "cargo-subcommand"
-version = "0.4.10"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f4620875891693c39876f4405baba700cb5835172a1ae55f77a0fd5579325eb9"
 dependencies = [
  "dunce",
  "glob",
@@ -463,6 +465,17 @@ name = "dunce"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b2641c4a7c0c4101df53ea572bffdc561c146f6c2eb09e4df02bc4811e3feeb4"
+
+[[package]]
+name = "ehframe"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "gimli",
+ "memmap",
+ "object",
+ "typed-arena",
+]
 
 [[package]]
 name = "either"
@@ -646,6 +659,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f6503fe142514ca4799d4c26297c4248239fe8838d827db6bd6065c6ed29a6ce"
 dependencies = [
  "fallible-iterator",
+ "indexmap",
  "stable_deref_trait",
 ]
 
@@ -665,6 +679,12 @@ dependencies = [
  "plain",
  "scroll",
 ]
+
+[[package]]
+name = "hashbrown"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d7afe4a420e3fe79967a00898cc1f4db7c8a49a9333a29f8a4bd76a253d5cd04"
 
 [[package]]
 name = "heck"
@@ -699,6 +719,16 @@ name = "humantime"
 version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9a3a5bfb195931eeb336b2a7b4d761daec841b97f947d34394601737a7bba5e4"
+
+[[package]]
+name = "indexmap"
+version = "1.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4fb1fa934250de4de8aef298d81c729a7d33d8c239daa3a7575e6b92bfc7313b"
+dependencies = [
+ "autocfg",
+ "hashbrown",
+]
 
 [[package]]
 name = "iovec"
@@ -763,9 +793,9 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.2.84"
+version = "0.2.86"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1cca32fa0182e8c0989459524dc356b8f2b5c10f1b9eb521b7d182c03cf8c5ff"
+checksum = "b7282d924be3275cec7f6756ff4121987bc6481325397dde6ba3e7802b1a8b1c"
 
 [[package]]
 name = "libloading"
@@ -794,6 +824,21 @@ dependencies = [
  "libc",
  "regex",
  "semver",
+]
+
+[[package]]
+name = "locate-dwarf"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cf774f90ac2685426c153e96fbd047e1d3a3d9b39ba3139d6d5850402aede7c8"
+dependencies = [
+ "anyhow",
+ "cfg-if 1.0.0",
+ "core-foundation",
+ "core-foundation-sys",
+ "libc",
+ "object",
+ "uuid",
 ]
 
 [[package]]
@@ -871,19 +916,6 @@ dependencies = [
  "net2",
  "winapi 0.2.8",
  "ws2_32-sys",
-]
-
-[[package]]
-name = "moria"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "cfg-if 1.0.0",
- "core-foundation",
- "core-foundation-sys",
- "libc",
- "object",
- "uuid",
 ]
 
 [[package]]
@@ -1097,9 +1129,9 @@ dependencies = [
 
 [[package]]
 name = "quote"
-version = "1.0.8"
+version = "1.0.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "991431c3519a3f36861882da93630ce66b52918dcf1b8e2fd66b397fc96f28df"
+checksum = "c3d0b9745dc2debf507c8422de05d7226cc1f0644216dfdfead988f9b1ab32a7"
 dependencies = [
  "proc-macro2",
 ]
@@ -1523,6 +1555,12 @@ dependencies = [
  "combine",
  "linked-hash-map",
 ]
+
+[[package]]
+name = "typed-arena"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0685c84d5d54d1c26f7d3eb96cd41550adb97baed141a761cf335d3d33bcd0ae"
 
 [[package]]
 name = "typenum"
