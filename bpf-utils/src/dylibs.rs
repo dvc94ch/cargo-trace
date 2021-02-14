@@ -81,8 +81,8 @@ impl std::fmt::Display for BinaryInfo {
     }
 }
 
-fn get_system_search_paths() -> Result<Vec<PathBuf>> {
-    Ok(vec![PathBuf::from("/usr/lib")])
+fn get_system_search_paths() -> Vec<PathBuf> {
+    vec![PathBuf::from("/usr/lib")]
 }
 
 fn get_cargo_search_paths(
@@ -90,7 +90,7 @@ fn get_cargo_search_paths(
     target_triple: &str,
     target_profile: &Path,
 ) -> Result<Vec<PathBuf>> {
-    let mut paths = get_system_search_paths()?;
+    let mut paths = get_system_search_paths();
 
     let deps_dir = target_dir
         .join(target_triple)
@@ -107,7 +107,7 @@ fn get_cargo_search_paths(
             for line in BufReader::new(File::open(output_file)?).lines() {
                 let line = line?;
                 if line.starts_with("cargo:rustc-link-search=") {
-                    let mut pie = line.split("=");
+                    let mut pie = line.split('=');
                     let (kind, path) = match (pie.next(), pie.next(), pie.next()) {
                         (Some(_), Some(kind), Some(path)) => (kind, path),
                         (Some(_), Some(path), None) => ("all", path),

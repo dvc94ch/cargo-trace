@@ -66,7 +66,7 @@ pub fn event_format(category: &str, name: &str) -> Result<EventFormat> {
     Ok(event)
 }
 
-fn parse_decl<'a>(input: Option<&'a str>) -> Result<(&'a str, Option<usize>)> {
+fn parse_decl(input: Option<&str>) -> Result<(&str, Option<usize>)> {
     if let Some(array) = parse_column(input)?.rsplit(' ').next() {
         let mut iter = array.split(|c| c == '[' || c == ']');
         let name = iter.next();
@@ -92,9 +92,9 @@ fn parse_signed(input: Option<&str>) -> Result<bool> {
     }
 }
 
-fn parse_column<'a>(input: Option<&'a str>) -> Result<&'a str> {
+fn parse_column(input: Option<&str>) -> Result<&str> {
     if let Some(input) = input {
-        if let Some(size) = input.split(|c| c == ':' || c == ';').skip(1).next() {
+        if let Some(size) = input.split(|c| c == ':' || c == ';').nth(1) {
             return Ok(size);
         }
     }

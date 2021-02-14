@@ -20,7 +20,7 @@ impl KernelSymbolTable {
         while f.read_line(&mut line)? > 0 {
             let mut iter = line.split(' ');
             let address = usize::from_str_radix(iter.next().unwrap(), 16)?;
-            let symbol = iter.skip(1).next().unwrap().trim().to_string();
+            let symbol = iter.nth(1).unwrap().trim().to_string();
             symbols.push(KernelSymbol { symbol, address });
             line.clear();
         }
