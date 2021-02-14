@@ -247,6 +247,7 @@ dependencies = [
  "addr2line",
  "anyhow",
  "cargo-subcommand",
+ "ehframe",
  "libc",
  "locate-dwarf",
  "memmap",
@@ -471,10 +472,13 @@ name = "ehframe"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "byteorder",
  "gimli",
+ "libc",
  "memmap",
  "object",
  "typed-arena",
+ "zerocopy",
 ]
 
 [[package]]

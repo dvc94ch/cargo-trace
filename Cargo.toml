@@ -1,11 +1,13 @@
 [workspace]
 members = [
     "bpf",
+    #"bpf-backtrace",
     "bpf-macros",
     "bpf-helpers",
     "bpf-helpers-sys",
     "bpf-probes",
     "bpf-utils",
+    "ehframe",
     "examples/allprobes",
     "examples/allprobes/probe",
     "examples/rust-analysis",

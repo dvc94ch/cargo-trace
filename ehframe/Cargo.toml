@@ -1,0 +1,15 @@
+[package]
+name = "ehframe"
+version = "0.1.0"
+authors = ["David Craven <david@craven.ch>"]
+edition = "2018"
+
+[dependencies]
+anyhow = "1.0.38"
+byteorder = "1.4.2"
+gimli = "0.23.0"
+libc = "0.2.86"
+memmap = "0.7.0"
+object = "0.23.0"
+typed-arena = "2.0.1"
+zerocopy = "0.3.0"
