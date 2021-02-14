@@ -48,6 +48,13 @@ impl BinaryInfo {
         Ok(Self { path, map })
     }
 
+    pub fn precompile_ehframes(&self, path: &Path) -> Result<()> {
+        for (elf, _) in self.map.values() {
+            elf.precompile_ehframe(path)?;
+        }
+        Ok(())
+    }
+
     pub fn spawn(&self) -> Result<Pid> {
         self.spawn_with_args::<_, &str>(std::iter::empty())
     }

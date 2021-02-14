@@ -1,6 +1,5 @@
 #![no_std]
 #[allow(clippy::missing_safety_doc)]
-
 mod map;
 mod pid;
 mod time;

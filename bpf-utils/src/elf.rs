@@ -53,6 +53,14 @@ impl Elf {
         Ok(BuildId::new(self.0.obj.build_id()?.unwrap()))
     }
 
+    pub fn precompile_ehframe(&self, path: &Path) -> Result<()> {
+        let path = path.join(format!("{}.ehframe", self.build_id()?));
+        if !path.exists() {
+            ehframe::UnwindTable::parse(&self.0.obj)?.gen(&path)?;
+        }
+        Ok(())
+    }
+
     pub fn resolve_symbol(&self, symbol: &str, offset: usize) -> Result<Option<usize>> {
         for sym in self.0.obj.symbols() {
             if sym.name() == Ok(symbol) {

@@ -1,7 +1,7 @@
 use anyhow::Result;
 use byteorder::BigEndian;
 use std::path::Path;
-use zerocopy::{AsBytes, FromBytes, Unaligned, U16, U32, U64};
+use zerocopy::{AsBytes, FromBytes, Unaligned, I32, U16, U64};
 
 pub const MAGIC_NUMBER: u64 = 0xd7_4c_90_35_f0_61_ef_7f;
 pub const X86_64_REGS: &[u8] = &[
@@ -67,8 +67,8 @@ impl Header {
 pub struct Instruction {
     op: u8,
     reg: u8,
-    offset1: U16<BigEndian>,
-    offset2: U32<BigEndian>,
+    _padding: U16<BigEndian>,
+    offset: I32<BigEndian>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -90,16 +90,12 @@ pub enum Op {
 }
 
 impl Instruction {
-    pub fn new(op: Op, reg: u8, offset: isize) -> Self {
-        let uoffset = -(offset + 1) as u64;
-        let offset2 = (uoffset & 0xffff_ffff) as u32;
-        let offset1 = (uoffset - offset2 as u64) as u16;
-        assert_eq!(-1 - (offset1 as isize + offset2 as isize), offset);
+    pub fn new(op: Op, reg: u8, offset: i32) -> Self {
         Self {
             op: op as _,
             reg,
-            offset1: U16::new(offset1 as u16),
-            offset2: U32::new(offset2 as u32),
+            _padding: U16::new(0),
+            offset: I32::new(offset),
         }
     }
 
@@ -118,8 +114,8 @@ impl Instruction {
         self.reg
     }
 
-    pub fn offset(&self) -> isize {
-        -1 - (self.offset1.get() as isize + self.offset2.get() as isize)
+    pub fn offset(&self) -> i32 {
+        self.offset.get() as _
     }
 }
 
@@ -133,7 +129,10 @@ pub struct File<'a> {
 
 impl<'a> File<'a> {
     pub fn open<T: AsRef<Path>>(path: T) -> Result<Self> {
-        let file = std::fs::File::open(path)?;
+        let file = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(path)?;
         let mut mmap = unsafe { memmap::Mmap::map(&file) }?.make_mut()?;
         let len = mmap.len();
         if len < std::mem::size_of::<Header>() {
@@ -165,7 +164,11 @@ impl<'a> File<'a> {
     }
 
     pub fn create<T: AsRef<Path>>(path: T, header: Header) -> Result<Self> {
-        let file = std::fs::File::create(path)?;
+        let file = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(path)?;
         file.set_len(header.size() as u64)?;
         let mut mmap = unsafe { memmap::Mmap::map(&file) }?.make_mut()?;
         let (hdr, data) = mmap.split_at_mut(std::mem::size_of::<Header>());

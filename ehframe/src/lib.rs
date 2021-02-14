@@ -16,9 +16,9 @@ pub enum Register {
     /// later IP in the same DIE.
     Undefined,
     /// Value of a machine register plus offset.
-    Register(MachineRegister, isize),
+    Register(MachineRegister, i32),
     /// Value stored at some offset from `CFA`.
-    CfaOffset(isize),
+    CfaOffset(i32),
     /// Value is the evaluation of the standard PLT
     /// expression, ie `((rip & 15) >= 11) >> 3 + rsp`.
     /// This is hardcoded because it is a common expression.
@@ -61,10 +61,7 @@ impl MachineRegister {
             gimli::X86_64::RBP => Self::Rbp,
             gimli::X86_64::RBX => Self::Rbx,
             gimli::X86_64::RA => Self::Ra,
-            _ => {
-                println!("unsupported register {:?}", reg);
-                return None;
-            }
+            _ => return None,
         })
     }
 }
@@ -99,7 +96,7 @@ pub struct UnwindTableRow {
 }
 
 impl UnwindTableRow {
-    pub fn parse<R: Reader>(
+    pub fn parse<R: Eq + Reader>(
         row: &gimli::UnwindTableRow<R>,
         _encoding: gimli::Encoding,
     ) -> Result<Self> {
@@ -111,35 +108,72 @@ impl UnwindTableRow {
                     if let Some(reg) = MachineRegister::parse(*register) {
                         Register::Register(reg, *offset as _)
                     } else {
+                        println!("unimpl cfa {:?}", row.cfa());
                         Register::Unimplemented
                     }
                 }
                 CfaRule::Expression(_expr) => {
-                    // TODO check it is always PltExpr
-                    Register::PltExpr
+                    /*let plt_expr: [Operation<R>; 9] = [
+                        Operation::RegisterOffset {
+                            register: gimli::Register(7),
+                            offset: 8,
+                            base_type: UnitOffset(R::Offset::from_u8(0)),
+                        },
+                        Operation::RegisterOffset {
+                            register: gimli::Register(16),
+                            offset: 0,
+                            base_type: UnitOffset(R::Offset::from_u8(0)),
+                        },
+                        Operation::UnsignedConstant { value: 15 },
+                        Operation::And,
+                        Operation::UnsignedConstant { value: 10 },
+                        Operation::Ge,
+                        Operation::UnsignedConstant { value: 3 },
+                        Operation::Shl,
+                        Operation::Plus,
+                    ];
+                    let mut iter = expr.clone().operations(encoding);
+                    let mut ops = vec![];
+                    while let Some(op) = iter.next()? {
+                        ops.push(op);
+                    }
+                    if ops.as_slice() == &plt_expr[..] {
+                        Register::PltExpr
+                    } else {
+                        println!("unimpl cfa {:?}", row.cfa());
+                        Register::Unimplemented
+                    }*/
+                    println!("unimpl cfa {:?}", row.cfa());
+                    Register::Unimplemented
                 }
             },
             rbp: match row.register(gimli::X86_64::RBP) {
                 RegisterRule::Undefined => Register::Undefined,
-                RegisterRule::Offset(offset) => Register::CfaOffset(offset as _),
-                rule => {
-                    println!("Unimplemented {:?}", rule);
+                RegisterRule::Offset(offset) if offset <= i32::MAX as i64 => {
+                    Register::CfaOffset(offset as i32)
+                }
+                _ => {
+                    println!("unimpl rbp {:?}", row.register(gimli::X86_64::RBP));
                     Register::Unimplemented
                 }
             },
             rbx: match row.register(gimli::X86_64::RBX) {
                 RegisterRule::Undefined => Register::Undefined,
-                RegisterRule::Offset(offset) => Register::CfaOffset(offset as _),
-                rule => {
-                    println!("Unimplemented {:?}", rule);
+                RegisterRule::Offset(offset) if offset <= i32::MAX as i64 => {
+                    Register::CfaOffset(offset as i32)
+                }
+                _ => {
+                    println!("unimpl rbx {:?}", row.register(gimli::X86_64::RBX));
                     Register::Unimplemented
                 }
             },
             ra: match row.register(gimli::X86_64::RA) {
                 RegisterRule::Undefined => Register::Undefined,
-                RegisterRule::Offset(offset) => Register::CfaOffset(offset as _),
-                rule => {
-                    println!("Unimplemented {:?}", rule);
+                RegisterRule::Offset(offset) if offset <= i32::MAX as i64 => {
+                    Register::CfaOffset(offset as i32)
+                }
+                _ => {
+                    println!("unimpl ra {:?}", row.register(gimli::X86_64::RA));
                     Register::Unimplemented
                 }
             },

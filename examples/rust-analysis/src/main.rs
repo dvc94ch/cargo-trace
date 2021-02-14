@@ -15,6 +15,7 @@ fn main() -> Result<()> {
         .map(|s| s.to_string());
     let cmd = Subcommand::new(args, "flamegraph", |_, _| Ok(false))?;
     let info = BinaryInfo::from_cargo_subcommand(&cmd)?;
+    info.precompile_ehframes(".".as_ref())?;
     println!("{}", info.to_string());
     let pid = info.spawn()?;
 
