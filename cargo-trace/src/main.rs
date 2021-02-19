@@ -29,7 +29,7 @@ fn main() -> Result<()> {
 
     pid.cont_and_wait()?;
 
-    let user_count = bpf
+    /*let user_count = bpf
         .hash_map::<U32, U32>("USER_COUNT")?
         .iter()
         .collect::<Vec<_>>();
@@ -40,7 +40,7 @@ fn main() -> Result<()> {
         for (i, ip) in ustack.iter().enumerate() {
             println!("  {}: 0x{:x}", i, ip);
         }
-    }
+    }*/
 
     Ok(())
 }

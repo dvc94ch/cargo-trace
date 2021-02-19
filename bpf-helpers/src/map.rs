@@ -32,7 +32,7 @@ impl<K, V, const T: u32> RawMap<K, V, T> {
     /// Returns a reference to the value corresponding to the key.
     ///
     /// To pass bpf validation the returned reference can be used only once.
-    #[inline]
+    #[inline(always)]
     pub unsafe fn lookup(&self, key: &K) -> *mut V {
         bpf_helpers_sys::bpf_map_lookup_elem(
             &self.def as *const _ as *mut c_void,
@@ -41,7 +41,7 @@ impl<K, V, const T: u32> RawMap<K, V, T> {
     }
 
     /// Set the `value` in the map for `key`
-    #[inline]
+    #[inline(always)]
     pub unsafe fn update(&self, key: &K, value: &V) {
         bpf_helpers_sys::bpf_map_update_elem(
             &self.def as *const _ as *mut c_void,
@@ -52,7 +52,7 @@ impl<K, V, const T: u32> RawMap<K, V, T> {
     }
 
     /// Delete the entry indexed by `key`
-    #[inline]
+    #[inline(always)]
     pub unsafe fn delete(&self, key: &K) {
         bpf_helpers_sys::bpf_map_delete_elem(
             &self.def as *const _ as *mut c_void,
@@ -70,26 +70,26 @@ pub type LruPercpuHashMap<K, V> =
 
 macro_rules! impl_hash_map {
     ($ty:ident) => {
-        impl<K, V: Clone> $ty<K, V> {
+        impl<K, V: Copy> $ty<K, V> {
             /// Returns a reference to the value corresponding to the key.
-            #[inline]
+            #[inline(always)]
             pub fn get(&self, key: &K) -> Option<V> {
                 let ptr = unsafe { self.lookup(key) };
                 if ptr.is_null() {
                     None
                 } else {
-                    Some(unsafe { &*ptr }.clone())
+                    Some(unsafe { *ptr })
                 }
             }
 
             /// Inserts the `value` in the map for `key`.
-            #[inline]
+            #[inline(always)]
             pub fn insert(&self, key: &K, value: &V) {
                 unsafe { self.update(key, value) }
             }
 
             /// Removes the entry indexed by `key`
-            #[inline]
+            #[inline(always)]
             pub fn remove(&self, key: &K) {
                 unsafe { self.delete(key) }
             }
@@ -108,15 +108,20 @@ pub type PercpuArray<V> =
 
 macro_rules! impl_hash_map {
     ($ty:ident) => {
-        impl<V: Clone> $ty<V> {
+        impl<V: Copy> $ty<V> {
             /// Returns a reference to the value corresponding to the key.
-            #[inline]
-            pub fn get(&self, key: u32) -> V {
-                unsafe { &*self.lookup(&key) }.clone()
+            #[inline(always)]
+            pub fn get(&self, key: u32) -> Option<V> {
+                let ptr = unsafe { self.lookup(&key) };
+                if ptr.is_null() {
+                    None
+                } else {
+                    Some(unsafe { *ptr })
+                }
             }
 
             /// Inserts the `value` in the map for `key`.
-            #[inline]
+            #[inline(always)]
             pub fn insert(&self, key: u32, value: &V) {
                 unsafe { self.update(&key, value) }
             }
@@ -142,7 +147,7 @@ macro_rules! impl_perf_event {
             // bpf_perf_event_read
             // bpf_perf_event_read_value
 
-            #[inline]
+            #[inline(always)]
             pub fn perf_event_output<C, P>(&self, ctx: &C, data: &P, flags: u64) {
                 unsafe {
                     bpf_helpers_sys::bpf_perf_event_output(
@@ -179,6 +184,7 @@ impl StackTrace {
     pub const FAST_STACK_CMP: u64 = bpf_helpers_sys::BPF_F_FAST_STACK_CMP as _;
     pub const REUSE_STACKID: u64 = bpf_helpers_sys::BPF_F_REUSE_STACKID as _;
 
+    #[inline(always)]
     pub fn stack_id(&self, ctx: *const c_void, flag: u64) -> Result<u32, c_int> {
         let ret = unsafe {
             bpf_helpers_sys::bpf_get_stackid(
@@ -223,6 +229,7 @@ impl ProgArray {
     /// (i.e. index is superior to the number of entries in the array), or
     /// if the maximum number of tail calls has been reached for this chain of
     /// programs.
+    #[inline(always)]
     pub fn tail_call<C>(&mut self, ctx: &C, index: u32) -> Result<(), i32> {
         let ret = unsafe {
             bpf_helpers_sys::bpf_tail_call(

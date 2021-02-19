@@ -1,4 +1,5 @@
 #include <linux/bpf.h>
+#include <linux/bpf_perf_event.h>
 
 struct bpf_map_def {
 	unsigned int type;
