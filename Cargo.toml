@@ -7,11 +7,11 @@ members = [
     "bpf-helpers-sys",
     "bpf-probes",
     "bpf-utils",
+    "cargo-trace",
+    "cargo-trace/probe",
     "ehframe",
     "examples/allprobes",
     "examples/allprobes/probe",
-    "examples/rust-analysis",
-    "examples/rust-analysis/probe",
     "examples/syscount",
     "examples/syscount/probe",
 ]

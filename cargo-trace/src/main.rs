@@ -18,11 +18,14 @@ fn main() -> Result<()> {
     info.precompile_ehframes(".".as_ref())?;
     println!("{}", info.to_string());
     let pid = info.spawn()?;
+    // TODO: load memory map
 
     let mut bpf = BpfBuilder::new(PROBE)?
         .set_child_pid(pid)
         .attach_probe("profile:hz:99", "profile")?
         .load()?;
+
+    // TODO: load address/instruction data into hashmaps
 
     pid.cont_and_wait()?;
 

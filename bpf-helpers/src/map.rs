@@ -16,13 +16,13 @@ pub struct RawMap<K, V, const T: u32> {
 
 impl<K, V, const T: u32> RawMap<K, V, T> {
     /// Creates a map with the specified maximum number of elements.
-    pub const fn with_max_entries(max_entries: u32) -> Self {
+    pub const fn with_max_entries(max_entries: usize) -> Self {
         Self {
             def: bpf_helpers_sys::bpf_map_def {
                 type_: T,
                 key_size: mem::size_of::<K>() as u32,
                 value_size: mem::size_of::<V>() as u32,
-                max_entries,
+                max_entries: max_entries as u32,
                 map_flags: 0,
             },
             _marker: PhantomData,

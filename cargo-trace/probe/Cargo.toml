@@ -1,5 +1,5 @@
 [package]
-name = "rust-analysis-probe"
+name = "cargo-trace-probe"
 version = "0.1.0"
 authors = ["David Craven <david@craven.ch>"]
 edition = "2018"
@@ -8,9 +8,9 @@ edition = "2018"
 probes = [] # required by cargo-bpf
 
 [dependencies]
-bpf-helpers = { path = "../../../bpf-helpers" }
+bpf-helpers = { path = "../../bpf-helpers" }
 
 [[bin]] # required by cargo-bpf
-name = "rust-analysis-probe"
+name = "cargo-trace-probe"
 path = "src/main.rs"
 required-features = ["probes"]
