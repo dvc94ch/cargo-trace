@@ -1,18 +1,18 @@
 #![no_std]
 #![no_main]
 
-use bpf_helpers::{entry, map, program, sys, Array, HashMap, StackTrace, U32};
+use bpf_helpers::{entry, map, program, sys, Array, HashMap, StackTrace};
 
 program!(0xFFFF_FFFE, b"GPL");
 
 #[map]
-static PROBE_COUNT: HashMap<U32, U32> = HashMap::with_max_entries(13);
+static PROBE_COUNT: HashMap<u32, u32> = HashMap::with_max_entries(13);
 #[map]
-static USER_COUNT: HashMap<U32, U32> = HashMap::with_max_entries(1024);
+static USER_COUNT: HashMap<u32, u32> = HashMap::with_max_entries(1024);
 #[map]
 static USER_STACKS: StackTrace = StackTrace::with_max_entries(1024);
 #[map]
-static KERNEL_COUNT: HashMap<U32, U32> = HashMap::with_max_entries(1024);
+static KERNEL_COUNT: HashMap<u32, u32> = HashMap::with_max_entries(1024);
 #[map]
 static KERNEL_STACKS: StackTrace = StackTrace::with_max_entries(1024);
 #[map]
@@ -20,9 +20,9 @@ static USER_STACKS_BUILDID: Array<[sys::bpf_stack_build_id; 127]> = Array::with_
 
 #[inline(always)]
 fn increase_counter(n: u32) {
-    let mut count = PROBE_COUNT.get(&U32::new(n)).unwrap_or_default();
-    count.set(count.get() + 1);
-    PROBE_COUNT.insert(&U32::new(n), &count);
+    let mut count = PROBE_COUNT.get(&n).unwrap_or_default();
+    count += 1;
+    PROBE_COUNT.insert(&n, &count);
 }
 
 #[entry("kprobe")]
@@ -60,16 +60,16 @@ fn profile(args: &bpf_perf_event_data) {
     increase_counter(6);
     if let Ok(kid) = KERNEL_STACKS.stack_id(args as *const _ as *const _, StackTrace::KERNEL_STACK)
     {
-        let mut count = KERNEL_COUNT.get(&U32::new(kid)).unwrap_or_default();
-        count.set(count.get() + 1);
-        KERNEL_COUNT.insert(&U32::new(kid), &count);
+        let mut count = KERNEL_COUNT.get(&kid).unwrap_or_default();
+        count += 1;
+        KERNEL_COUNT.insert(&kid, &count);
     }
     if let Ok(uid) = USER_STACKS.stack_id(args as *const _ as *const _, StackTrace::USER_STACK) {
-        let mut count = USER_COUNT.get(&U32::new(uid)).unwrap_or_default();
-        count.set(count.get() + 1);
-        USER_COUNT.insert(&U32::new(uid), &count);
+        let mut count = USER_COUNT.get(&uid).unwrap_or_default();
+        count += 1;
+        USER_COUNT.insert(&uid, &count);
 
-        if count.get() == 0 {
+        if count == 0 {
             /*unsafe {
                 sys::bpf_get_stack(
                     args as *const _ as *mut _,

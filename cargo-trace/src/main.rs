@@ -5,7 +5,7 @@ use cargo_subcommand::Subcommand;
 
 static PROBE: &[u8] = include_bytes!(concat!(
     env!("OUT_DIR"),
-    "/target/bpf/programs/rust-analysis-probe/rust-analysis-probe.elf",
+    "/target/bpf/programs/cargo-trace-probe/cargo-trace-probe.elf",
 ));
 
 fn main() -> Result<()> {

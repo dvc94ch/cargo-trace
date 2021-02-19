@@ -6,9 +6,9 @@ edition = "2018"
 
 [dependencies]
 anyhow = "1.0.38"
-bpf-helpers = { version = "0.1.0", path = "../bpf-helpers" }
 bpf-probes = { version = "0.1.0", path = "../bpf-probes" }
 bpf-utils = { version = "0.1.0", path = "../bpf-utils" }
+byteorder = { version = "1.4.2", default-features = false }
 libbpf-rs = "0.7.0"
 sudo = "0.6.0"
-zerocopy = "0.3.0"
+zerocopy = { version = "0.3.0", default-features = false }

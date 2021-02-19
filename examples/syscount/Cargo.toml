@@ -9,5 +9,5 @@ cargo-bpf = "1.3.0"
 
 [dependencies]
 anyhow = "1.0.38"
-bpf = { version = "0.1.0", path = "../../bpf" }
-syscount-probe = { version = "0.1.0", path = "probe" }
+bpf = { path = "../../bpf" }
+zerocopy = "0.3.0"

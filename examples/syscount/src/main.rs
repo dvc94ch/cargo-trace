@@ -1,12 +1,19 @@
 use anyhow::Result;
-use bpf::{BpfBuilder, U32};
+use bpf::{BpfBuilder, U32, U64};
 use std::time::Duration;
-use syscount_probe::SyscallInfo;
+use zerocopy::{AsBytes, FromBytes, Unaligned};
 
 static PROBE: &[u8] = include_bytes!(concat!(
     env!("OUT_DIR"),
     "/target/bpf/programs/syscount-probe/syscount-probe.elf",
 ));
+
+#[derive(Clone, Copy, Default, AsBytes, FromBytes, Unaligned)]
+#[repr(C)]
+pub struct SyscallInfo {
+    pub count: U64,
+    pub time_ns: U64,
+}
 
 fn main() -> Result<()> {
     bpf::utils::escalate_if_needed().unwrap();
@@ -25,7 +32,7 @@ fn main() -> Result<()> {
                 .get(&syscall.get())
                 .cloned()
                 .unwrap_or_else(|| syscall.to_string());
-            println!("{:10} {:6} {:10}", name, info.count, info.time.as_nanos());
+            println!("{:10} {:6} {:10}", name, info.count, info.time_ns);
         }
     }
 }

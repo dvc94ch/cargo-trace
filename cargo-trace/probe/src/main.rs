@@ -1,7 +1,7 @@
 #![no_std]
 #![no_main]
 
-use bpf_helpers::{entry, map, program, Array, HashMap, U16, U32, U64, I32};
+use bpf_helpers::{entry, map, program, Array, HashMap};
 
 program!(0xFFFF_FFFE, b"GPL");
 
@@ -12,12 +12,12 @@ const EHFRAME_ENTRIES: usize = 1024;
 pub struct Instruction {
     op: u8,
     reg: u8,
-    _padding: U16,
-    offset: I32,
+    _padding: u16,
+    offset: i32,
 }
 
 #[map]
-static PC: Array<U64> = Array::with_max_entries(EHFRAME_ENTRIES);
+static PC: Array<u64> = Array::with_max_entries(EHFRAME_ENTRIES);
 #[map]
 static RIP: Array<Instruction> = Array::with_max_entries(EHFRAME_ENTRIES);
 #[map]
@@ -28,7 +28,7 @@ static RBP: Array<Instruction> = Array::with_max_entries(EHFRAME_ENTRIES);
 static RBX: Array<Instruction> = Array::with_max_entries(EHFRAME_ENTRIES);
 
 #[map]
-static USER_STACK: HashMap<[U64; MAX_STACK_DEPTH], U32> = HashMap::with_max_entries(1024);
+static USER_STACK: HashMap<[u64; MAX_STACK_DEPTH], u32> = HashMap::with_max_entries(1024);
 
 #[entry("perf_event")]
 fn profile(args: &bpf_perf_event_data) {
@@ -37,9 +37,9 @@ fn profile(args: &bpf_perf_event_data) {
     let mut rsp: usize = 0;
     let mut rbp: usize = 0;
     let mut rbx: usize = 0;
-    let mut stack = [U64::new(0); MAX_STACK_DEPTH];
+    let mut stack = [0; MAX_STACK_DEPTH];
     for d in 0..MAX_STACK_DEPTH {
-        stack[d] = U64::new(rip as _);
+        stack[d] = rip as _;
         if rip == 0 {
             break;
         }
@@ -64,6 +64,6 @@ fn profile(args: &bpf_perf_event_data) {
         }*/
     }
     let mut count = USER_STACK.get(&stack).unwrap_or_default();
-    count.set(count.get() + 1);
+    count += 1;
     USER_STACK.insert(&stack, &count);
 }

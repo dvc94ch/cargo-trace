@@ -11,13 +11,6 @@ pub use bpf_helpers_sys as sys;
 pub use bpf_macros::*;
 pub use cty;
 
-pub type I16 = zerocopy::byteorder::I16<byteorder::NativeEndian>;
-pub type I32 = zerocopy::byteorder::I32<byteorder::NativeEndian>;
-pub type I64 = zerocopy::byteorder::I64<byteorder::NativeEndian>;
-pub type U16 = zerocopy::byteorder::U16<byteorder::NativeEndian>;
-pub type U32 = zerocopy::byteorder::U32<byteorder::NativeEndian>;
-pub type U64 = zerocopy::byteorder::U64<byteorder::NativeEndian>;
-
 #[inline]
 pub fn bpf_trace_printk(msg: &[u8]) -> usize {
     unsafe {

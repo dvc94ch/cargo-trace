@@ -1,9 +1,15 @@
 use anyhow::Result;
-pub use bpf_helpers::{I16, I32, I64, U16, U32, U64};
 use bpf_probes::{AttachedProbe, Probe};
 use libbpf_rs::{Map, MapFlags, Object, ObjectBuilder, OpenObject};
 use std::marker::PhantomData;
 use zerocopy::{AsBytes, FromBytes, LayoutVerified, Unaligned};
+
+pub type I16 = zerocopy::byteorder::I16<byteorder::NativeEndian>;
+pub type I32 = zerocopy::byteorder::I32<byteorder::NativeEndian>;
+pub type I64 = zerocopy::byteorder::I64<byteorder::NativeEndian>;
+pub type U16 = zerocopy::byteorder::U16<byteorder::NativeEndian>;
+pub type U32 = zerocopy::byteorder::U32<byteorder::NativeEndian>;
+pub type U64 = zerocopy::byteorder::U64<byteorder::NativeEndian>;
 
 pub mod utils {
     pub use bpf_utils::dylibs::{BinaryInfo, Pid};
