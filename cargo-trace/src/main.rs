@@ -3,6 +3,7 @@ use bpf::utils::{ehframe, escalate_if_needed, BinaryInfo};
 use bpf::{BpfBuilder, I32, U16, U32, U64};
 use cargo_subcommand::Subcommand;
 use std::io::{Read, Write};
+use std::process::Command;
 use zerocopy::{AsBytes, FromBytes, Unaligned};
 
 static PROBE: &[u8] = include_bytes!(concat!(
@@ -32,14 +33,21 @@ impl From<ehframe::format::Instruction> for Instruction {
 
 fn main() -> Result<()> {
     escalate_if_needed().unwrap();
-    let args = "cargo flamegraph -- --example hello_world"
-        .split(' ')
-        .map(|s| s.to_string());
-    let cmd = Subcommand::new(args, "flamegraph", |_, _| Ok(false))?;
+    env_logger::init();
+    let args = std::env::args();
+    let cmd = Subcommand::new(args, "trace", |_, _| Ok(true))?;
+    let status = Command::new("cargo")
+        .arg("build")
+        .args(cmd.args())
+        .spawn()?
+        .wait()?;
+    if !status.success() {
+        std::process::exit(status.code().unwrap());
+    }
     let info = BinaryInfo::from_cargo_subcommand(&cmd)?;
     let table = info.elf().unwind_table()?;
-    println!("{}", info.to_string());
-    println!("size of unwind table {}", table.rows.len());
+    log::debug!("{}", info.to_string());
+    log::debug!("size of unwind table {}", table.rows.len());
     let mut ehframe = std::fs::OpenOptions::new()
         .write(true)
         .truncate(true)
@@ -48,17 +56,22 @@ fn main() -> Result<()> {
     ehframe.write_all(table.to_string().as_bytes())?;
     let pid = info.spawn()?;
 
+    // TODO: load entire memory map
     let mut addr = [0u8; 12];
     let mut map = std::fs::File::open(format!("/proc/{}/maps", u32::from(pid)))?;
     map.read_exact(&mut addr)?;
     let offset = u64::from_str_radix(std::str::from_utf8(&addr)?, 16)?;
-    println!("load address is 0x{:x}", offset);
+    log::debug!("loading program with pid {}", u32::from(pid));
+    log::debug!("load address is 0x{:x}", offset);
 
-    // TODO: load memory map
-
+    let bpf_entry = if cmd.cmd().starts_with("profile:") {
+        "profile"
+    } else {
+        "kprobe"
+    };
     let mut bpf = BpfBuilder::new(PROBE)?
         .set_child_pid(pid)
-        .attach_probe("profile:hz:99", "profile")?
+        .attach_probe(cmd.cmd(), bpf_entry)?
         .load()?;
 
     let mut pc = bpf.array::<U64>("PC")?;
@@ -87,8 +100,10 @@ fn main() -> Result<()> {
     let mut len = bpf.array::<U32>("ARRAY_SIZE")?;
     len.insert(&U32::new(0), &U32::new(table.rows.len() as _))?;
 
+    log::debug!("running program");
     pid.cont_and_wait()?;
 
+    // TODO create a flamegraph
     let user_stack = bpf.hash_map::<[U64; 4], U32>("USER_STACK")?;
     for (stack, count) in user_stack.iter() {
         println!("stack observed {} times:", count);
@@ -98,7 +113,6 @@ fn main() -> Result<()> {
             }
             let ip = ip.get() - offset;
             info.print_frame(i, ip as usize)?;
-            //println!("  {}: 0x{:x}", i, ip.get() - offset);
         }
     }
 

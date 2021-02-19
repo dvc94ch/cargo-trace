@@ -35,8 +35,24 @@ static USER_STACK: HashMap<[u64; MAX_STACK_DEPTH], u32> = HashMap::with_max_entr
 
 #[entry("perf_event")]
 fn profile(args: &bpf_perf_event_data) {
-    let mut regs = args.regs.clone();
+    increment_stack_counter(&args.regs);
+}
+
+#[entry("kprobe")]
+fn kprobe(args: &pt_regs) {
+    increment_stack_counter(args);
+}
+
+fn increment_stack_counter(regs: &sys::pt_regs) {
     let mut stack = [0; MAX_STACK_DEPTH];
+    backtrace(regs, &mut stack);
+    let mut count = USER_STACK.get(&stack).unwrap_or_default();
+    count += 1;
+    USER_STACK.insert(&stack, &count);
+}
+
+fn backtrace(regs: &sys::pt_regs, stack: &mut [u64; MAX_STACK_DEPTH]) {
+    let mut regs = regs.clone();
     for d in 0..MAX_STACK_DEPTH {
         stack[d] = regs.rip;
         if regs.rip == 0 {
@@ -68,9 +84,6 @@ fn profile(args: &bpf_perf_event_data) {
             }
         }
     }
-    let mut count = USER_STACK.get(&stack).unwrap_or_default();
-    count += 1;
-    USER_STACK.insert(&stack, &count);
 }
 
 fn binary_search(rip: u64) -> u32 {
