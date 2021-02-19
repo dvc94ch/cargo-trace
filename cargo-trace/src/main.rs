@@ -69,9 +69,19 @@ fn main() -> Result<()> {
     } else {
         "kprobe"
     };
+    let probe = if cmd.cmd().starts_with("uprobe:") {
+        let parts = cmd.cmd().split(':').collect::<Vec<_>>();
+        if parts.len() == 2 {
+            format!("uprobe:{}:{}", info.path().display(), parts[1])
+        } else {
+            cmd.cmd().to_string()
+        }
+    } else {
+        cmd.cmd().to_string()
+    };
     let mut bpf = BpfBuilder::new(PROBE)?
         .set_child_pid(pid)
-        .attach_probe(cmd.cmd(), bpf_entry)?
+        .attach_probe(&probe, bpf_entry)?
         .load()?;
 
     let mut pc = bpf.array::<U64>("PC")?;
