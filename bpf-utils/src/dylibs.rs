@@ -12,6 +12,7 @@ use std::process::Command;
 
 pub struct BinaryInfo {
     path: PathBuf,
+    build_id: BuildId,
     map: HashMap<BuildId, (Elf, Option<Dwarf>)>,
 }
 
@@ -36,16 +37,24 @@ impl BinaryInfo {
         let path = std::fs::canonicalize(path)?;
         let mut map = HashMap::with_capacity(10);
         let mut todo = vec![path.clone()];
+        let mut root_build_id = None;
         while let Some(path) = todo.pop() {
             let elf = Elf::open(&path)?;
             let build_id = elf.build_id()?;
+            if root_build_id.is_none() {
+                root_build_id = Some(build_id);
+            }
             for lib in elf.dynamic()? {
                 todo.push(find_library_path(search_paths, lib)?.unwrap());
             }
             let dwarf = elf.dwarf().ok();
             map.insert(build_id, (elf, dwarf));
         }
-        Ok(Self { path, map })
+        Ok(Self {
+            path,
+            build_id: root_build_id.unwrap(),
+            map,
+        })
     }
 
     pub fn precompile_ehframes(&self, path: &Path) -> Result<()> {
@@ -53,6 +62,18 @@ impl BinaryInfo {
             elf.precompile_ehframe(path)?;
         }
         Ok(())
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    pub fn elf(&self) -> &Elf {
+        &self.map.get(&self.build_id).unwrap().0
+    }
+
+    pub fn dwarf(&self) -> Option<&Dwarf> {
+        self.map.get(&self.build_id).unwrap().1.as_ref()
     }
 
     pub fn spawn(&self) -> Result<Pid> {
@@ -66,6 +87,37 @@ impl BinaryInfo {
     {
         let child = Command::new(&self.path).args(args).spawn_ptrace()?;
         Ok(Pid(child.id()))
+    }
+
+    pub fn print_frame(&self, i: usize, ip: usize) -> Result<()> {
+        if let Some(dwarf) = self.dwarf() {
+            let mut iter = dwarf.find_frames(ip)?;
+            let mut first = true;
+            while let Some(frame) = iter.next()? {
+                if first {
+                    print!("{:4}: ", i);
+                    first = false;
+                } else {
+                    print!("    : ");
+                }
+                if let Some(function) = frame.function {
+                    println!("{}", function.demangle()?);
+                } else {
+                    println!("0x{:x}", ip);
+                }
+                if let Some(location) = frame.location {
+                    if let (Some(file), Some(line)) = (location.file, location.line) {
+                        print!("             at {}:{}", file, line);
+                    }
+                    if let Some(col) = location.column {
+                        println!(":{}", col);
+                    } else {
+                        println!("");
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 }
 

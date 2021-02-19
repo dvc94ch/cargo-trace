@@ -13,6 +13,7 @@ pub type U64 = zerocopy::byteorder::U64<byteorder::NativeEndian>;
 
 pub mod utils {
     pub use bpf_utils::dylibs::{BinaryInfo, Pid};
+    pub use bpf_utils::ehframe;
     pub use bpf_utils::elf::{Dwarf, Elf};
     pub use bpf_utils::kallsyms::{KernelSymbol, KernelSymbolTable};
     pub use bpf_utils::syscall::syscall_table;
@@ -82,6 +83,13 @@ impl Bpf {
         Ok(BpfHashMap::new(self.obj.map(map)?.unwrap()))
     }
 
+    pub fn array<V>(&mut self, map: &str) -> Result<BpfHashMap<'_, U32, V>>
+    where
+        V: AsBytes + FromBytes + Unaligned + Clone,
+    {
+        Ok(BpfHashMap::new(self.obj.map(map)?.unwrap()))
+    }
+
     pub fn stack_trace(&mut self, map: &str) -> Result<BpfStackTrace<'_>> {
         Ok(BpfStackTrace::new(self.obj.map(map)?.unwrap()))
     }
@@ -111,6 +119,12 @@ where
             }
         }
         Ok(None)
+    }
+
+    pub fn insert(&mut self, key: &K, value: &V) -> Result<()> {
+        self.map
+            .update(key.as_bytes(), value.as_bytes(), MapFlags::empty())?;
+        Ok(())
     }
 
     pub fn keys(&self) -> impl Iterator<Item = K> + '_ {

@@ -5,3 +5,4 @@ pub mod event;
 pub mod kallsyms;
 pub mod rlimit;
 pub mod syscall;
+pub use ehframe;

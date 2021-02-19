@@ -3,9 +3,7 @@ pub struct PidTgid(u64);
 
 impl PidTgid {
     pub fn current() -> Self {
-        Self(unsafe {
-            bpf_helpers_sys::bpf_get_current_pid_tgid()
-        })
+        Self(unsafe { bpf_helpers_sys::bpf_get_current_pid_tgid() })
     }
 
     pub fn pid(&self) -> u32 {

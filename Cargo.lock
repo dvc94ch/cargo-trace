@@ -311,6 +311,7 @@ dependencies = [
  "bpf",
  "cargo-bpf",
  "cargo-subcommand",
+ "zerocopy",
 ]
 
 [[package]]

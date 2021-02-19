@@ -1,5 +1,6 @@
-use addr2line::{gimli, object, Context, Location};
+use addr2line::{gimli, object, Context, FrameIter, Location};
 use anyhow::Result;
+use ehframe::UnwindTable;
 use memmap::Mmap;
 use object::elf::FileHeader64;
 use object::read::elf::{Dyn, ElfFile, ProgramHeader};
@@ -56,9 +57,13 @@ impl Elf {
     pub fn precompile_ehframe(&self, path: &Path) -> Result<()> {
         let path = path.join(format!("{}.ehframe", self.build_id()?));
         if !path.exists() {
-            ehframe::UnwindTable::parse(&self.0.obj)?.gen(&path)?;
+            self.unwind_table()?.gen(&path)?;
         }
         Ok(())
+    }
+
+    pub fn unwind_table(&self) -> Result<UnwindTable> {
+        UnwindTable::parse(&self.0.obj)
     }
 
     pub fn resolve_symbol(&self, symbol: &str, offset: usize) -> Result<Option<usize>> {
@@ -121,9 +126,11 @@ impl Elf {
     }
 }
 
+type Reader = gimli::EndianRcSlice<gimli::RunTimeEndian>;
+
 pub struct Dwarf {
     elf: Elf,
-    ctx: Context<gimli::EndianRcSlice<gimli::RunTimeEndian>>,
+    ctx: Context<Reader>,
 }
 
 impl Dwarf {
@@ -147,6 +154,10 @@ impl Dwarf {
 
     pub fn resolve_location(&self, address: usize) -> Result<Option<Location<'_>>> {
         Ok(self.ctx.find_location(address as _)?)
+    }
+
+    pub fn find_frames(&self, probe: usize) -> Result<FrameIter<'_, Reader>> {
+        Ok(self.ctx.find_frames(probe as _)?)
     }
 }
 

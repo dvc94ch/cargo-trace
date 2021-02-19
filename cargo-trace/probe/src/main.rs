@@ -6,8 +6,8 @@ use bpf_helpers::{entry, map, program, sys, Array, HashMap};
 program!(0xFFFF_FFFE, b"GPL");
 
 const MAX_STACK_DEPTH: usize = 4;
-const MAX_BIN_SEARCH_DEPTH: usize = 4;
-const EHFRAME_ENTRIES: usize = 1024;
+const MAX_BIN_SEARCH_DEPTH: usize = 16;
+const EHFRAME_ENTRIES: usize = 0xffff;
 
 #[derive(Clone, Copy)]
 pub struct Instruction {
@@ -60,15 +60,11 @@ fn profile(args: &bpf_perf_event_data) {
         if let Some(ins) = RBP.get(i) {
             if let Some(res) = execute_instuction(&ins, &regs) {
                 regs.rbp = res;
-            } else {
-                break;
             }
         }
         if let Some(ins) = RBX.get(i) {
-            if let Some(res) =  execute_instuction(&ins, &regs) {
+            if let Some(res) = execute_instuction(&ins, &regs) {
                 regs.rbx = res;
-            } else {
-                break;
             }
         }
     }
@@ -100,7 +96,7 @@ fn execute_instuction(ins: &Instruction, regs: &sys::pt_regs) -> Option<u64> {
     match ins.op {
         2 => {
             let unsafe_ptr = (regs.rsp as i64 + ins.offset as i64) as *const core::ffi::c_void;
-            let mut res = 0;
+            let mut res: u64 = 0;
             if unsafe { sys::bpf_probe_read(&mut res as *mut _ as *mut _, 8, unsafe_ptr) } == 0 {
                 Some(res)
             } else {
@@ -113,7 +109,7 @@ fn execute_instuction(ins: &Instruction, regs: &sys::pt_regs) -> Option<u64> {
             15 => Some((regs.rsp as i64 + ins.offset as i64) as u64),
             16 => Some((regs.rip as i64 + ins.offset as i64) as u64),
             _ => None,
-        }
+        },
         _ => None,
     }
 }
