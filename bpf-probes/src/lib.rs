@@ -9,9 +9,10 @@
 //! 5. Read bpf program maps (libbpf-rs).
 use anyhow::Result;
 use bpf_utils::elf::Elf;
-use libbpf_rs::{Program, ProgramAttachType, ProgramType};
-use std::path::PathBuf;
+pub use libbpf_rs::{Program, ProgramAttachType, ProgramType};
+use std::path::{Path, PathBuf};
 use std::time::Duration;
+use thiserror::Error;
 
 mod attach;
 mod parse;
@@ -188,16 +189,16 @@ pub enum Probe {
         symbol: String,
     },
     Uprobe {
-        path: PathBuf,
+        path: Option<PathBuf>,
         symbol: String,
         offset: usize,
     },
     Uretprobe {
-        path: PathBuf,
+        path: Option<PathBuf>,
         symbol: String,
     },
     Usdt {
-        path: PathBuf,
+        path: Option<PathBuf>,
         probe: String,
     },
     Tracepoint {
@@ -235,15 +236,43 @@ impl std::fmt::Display for Probe {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         use Probe::*;
         match self {
-            Kprobe { symbol, offset } => write!(f, "kprobe:{}+{}", symbol, offset),
+            Kprobe { symbol, offset } => {
+                write!(f, "kprobe:{}", symbol)?;
+                if *offset > 0 {
+                    write!(f, "+{}", offset)?;
+                }
+                Ok(())
+            }
             Kretprobe { symbol } => write!(f, "kretprobe:{}", symbol),
             Uprobe {
                 path,
                 symbol,
                 offset,
-            } => write!(f, "uprobe:{}:{}+{}", path.display(), symbol, offset),
-            Uretprobe { path, symbol } => write!(f, "uretprobe:{}:{}", path.display(), symbol),
-            Usdt { path, probe } => write!(f, "usdt:{}:{}", path.display(), probe),
+            } => {
+                write!(f, "uprobe:")?;
+                if let Some(path) = path {
+                    write!(f, "{}:", path.display())?;
+                }
+                write!(f, "{}", symbol)?;
+                if *offset > 0 {
+                    write!(f, "+{}", offset)?;
+                }
+                Ok(())
+            }
+            Uretprobe { path, symbol } => {
+                write!(f, "uretprobe:")?;
+                if let Some(path) = path {
+                    write!(f, "{}:", path.display())?;
+                }
+                write!(f, "{}", symbol)
+            }
+            Usdt { path, probe } => {
+                write!(f, "usdt:")?;
+                if let Some(path) = path {
+                    write!(f, "{}:", path.display())?;
+                }
+                write!(f, "{}", probe)
+            }
             Tracepoint { category, name } => write!(f, "tracepoint:{}:{}", category, name),
             Profile { interval } => write!(f, "profile:{}", interval),
             Interval { interval } => write!(f, "interval:{}", interval),
@@ -298,12 +327,23 @@ impl Probe {
         }
     }
 
+    pub fn set_default_path(&mut self, default_path: &Path) {
+        match self {
+            Self::Uprobe { path, .. } | Self::Uretprobe { path, .. } | Self::Usdt { path, .. } => {
+                if path.is_none() {
+                    *path = Some(default_path.into());
+                }
+            }
+            _ => {}
+        }
+    }
+
     pub fn attach(&self, program: &mut Program, pid: Option<u32>) -> Result<Vec<AttachedProbe>> {
         let probes = match self {
             Self::Kprobe { symbol, offset } => vec![AttachedProbe::kprobe(symbol, *offset, pid)?],
             Self::Kretprobe { symbol } => vec![AttachedProbe::kretprobe(symbol, pid)?],
             Self::Uprobe {
-                path,
+                path: Some(path),
                 symbol,
                 offset,
             } => {
@@ -311,12 +351,21 @@ impl Probe {
                 let address = elf.resolve_symbol(symbol, *offset)?.unwrap();
                 vec![AttachedProbe::uprobe(path, address, pid)?]
             }
-            Self::Uretprobe { path, symbol } => {
+            Self::Uprobe { path: None, .. } => return Err(ProbePathRequired.into()),
+            Self::Uretprobe {
+                path: Some(path),
+                symbol,
+            } => {
                 let elf = Elf::open(path)?;
                 let address = elf.resolve_symbol(symbol, 0)?.unwrap();
                 vec![AttachedProbe::uretprobe(path, address, pid)?]
             }
-            Self::Usdt { path, probe } => vec![AttachedProbe::usdt(path, probe, pid)?],
+            Self::Uretprobe { path: None, .. } => return Err(ProbePathRequired.into()),
+            Self::Usdt {
+                path: Some(path),
+                probe,
+            } => vec![AttachedProbe::usdt(path, probe, pid)?],
+            Self::Usdt { path: None, .. } => return Err(ProbePathRequired.into()),
             Self::Tracepoint { category, name } => {
                 vec![AttachedProbe::tracepoint(category, name, pid)?]
             }
@@ -345,3 +394,7 @@ impl Probe {
         Ok(probes)
     }
 }
+
+#[derive(Debug, Error)]
+#[error("Probe path is required.")]
+pub struct ProbePathRequired;

@@ -34,7 +34,7 @@ static RBX: Array<Instruction> = Array::with_max_entries(EHFRAME_ENTRIES);
 static USER_STACK: HashMap<[u64; MAX_STACK_DEPTH], u32> = HashMap::with_max_entries(1024);
 
 #[entry("perf_event")]
-fn profile(args: &bpf_perf_event_data) {
+fn perf_event(args: &bpf_perf_event_data) {
     increment_stack_counter(&args.regs);
 }
 

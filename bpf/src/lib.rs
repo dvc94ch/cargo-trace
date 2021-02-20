@@ -1,5 +1,5 @@
 use anyhow::Result;
-use bpf_probes::{AttachedProbe, Probe};
+pub use bpf_probes::*;
 use libbpf_rs::{Map, MapFlags, Object, ObjectBuilder, OpenObject};
 use std::marker::PhantomData;
 use zerocopy::{AsBytes, FromBytes, LayoutVerified, Unaligned};
@@ -17,7 +17,7 @@ pub mod utils {
     pub use bpf_utils::elf::{Dwarf, Elf};
     pub use bpf_utils::kallsyms::{KernelSymbol, KernelSymbolTable};
     pub use bpf_utils::syscall::syscall_table;
-    pub use sudo::escalate_if_needed;
+    pub use sudo;
 }
 
 pub struct BpfBuilder {
@@ -44,8 +44,11 @@ impl BpfBuilder {
         self
     }
 
-    pub fn attach_probe(mut self, probe: &str, entry: &'static str) -> Result<Self> {
-        let probe: Probe = probe.parse()?;
+    pub fn attach_probe_str(self, probe: &str, entry: &'static str) -> Result<Self> {
+        self.attach_probe(probe.parse()?, entry)
+    }
+
+    pub fn attach_probe(mut self, probe: Probe, entry: &'static str) -> Result<Self> {
         let new_prog = self.new_obj.prog(entry)?.unwrap();
         new_prog.set_prog_type(probe.prog_type());
         if let Some(attach_type) = probe.attach_type() {

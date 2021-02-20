@@ -1,6 +1,6 @@
 use anyhow::Result;
-use bpf::utils::{ehframe, escalate_if_needed, BinaryInfo};
-use bpf::{BpfBuilder, I32, U16, U32, U64};
+use bpf::utils::{ehframe, sudo, BinaryInfo};
+use bpf::{BpfBuilder, Probe, ProgramType, I32, U16, U32, U64};
 use cargo_subcommand::Subcommand;
 use std::io::{Read, Write};
 use std::process::Command;
@@ -32,18 +32,21 @@ impl From<ehframe::format::Instruction> for Instruction {
 }
 
 fn main() -> Result<()> {
-    escalate_if_needed().unwrap();
     env_logger::init();
     let args = std::env::args();
     let cmd = Subcommand::new(args, "trace", |_, _| Ok(true))?;
-    let status = Command::new("cargo")
-        .arg("build")
-        .args(cmd.args())
-        .spawn()?
-        .wait()?;
-    if !status.success() {
-        std::process::exit(status.code().unwrap());
+    if sudo::check() == sudo::RunningAs::User {
+        let status = Command::new("cargo")
+            .arg("build")
+            .args(cmd.args())
+            .spawn()?
+            .wait()?;
+        if !status.success() {
+            std::process::exit(status.code().unwrap());
+        }
     }
+    sudo::escalate_if_needed().unwrap();
+
     let info = BinaryInfo::from_cargo_subcommand(&cmd)?;
     let table = info.elf().unwind_table()?;
     log::debug!("{}", info.to_string());
@@ -55,33 +58,28 @@ fn main() -> Result<()> {
         .open(".ehframe")?;
     ehframe.write_all(table.to_string().as_bytes())?;
     let pid = info.spawn()?;
+    log::debug!("loading program with pid {}", u32::from(pid));
 
     // TODO: load entire memory map
     let mut addr = [0u8; 12];
     let mut map = std::fs::File::open(format!("/proc/{}/maps", u32::from(pid)))?;
     map.read_exact(&mut addr)?;
     let offset = u64::from_str_radix(std::str::from_utf8(&addr)?, 16)?;
-    log::debug!("loading program with pid {}", u32::from(pid));
     log::debug!("load address is 0x{:x}", offset);
 
-    let bpf_entry = if cmd.cmd().starts_with("profile:") {
-        "profile"
-    } else {
-        "kprobe"
+    // TODO more convenience:
+    // user symbols lookup where demangled == provided
+    // convert tracepoint to kprobes on syscalls
+    let mut probe: Probe = cmd.cmd().parse()?;
+    let entry = match probe.prog_type() {
+        ProgramType::Kprobe => "kprobe",
+        ProgramType::PerfEvent => "perf_event",
+        _ => return Err(anyhow::anyhow!("unsupported probe {}", probe)),
     };
-    let probe = if cmd.cmd().starts_with("uprobe:") {
-        let parts = cmd.cmd().split(':').collect::<Vec<_>>();
-        if parts.len() == 2 {
-            format!("uprobe:{}:{}", info.path().display(), parts[1])
-        } else {
-            cmd.cmd().to_string()
-        }
-    } else {
-        cmd.cmd().to_string()
-    };
+    probe.set_default_path(info.path());
     let mut bpf = BpfBuilder::new(PROBE)?
         .set_child_pid(pid)
-        .attach_probe(&probe, bpf_entry)?
+        .attach_probe(probe, entry)?
         .load()?;
 
     let mut pc = bpf.array::<U64>("PC")?;

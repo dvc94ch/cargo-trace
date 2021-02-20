@@ -16,10 +16,10 @@ pub struct SyscallInfo {
 }
 
 fn main() -> Result<()> {
-    bpf::utils::escalate_if_needed().unwrap();
+    bpf::utils::sudo::escalate_if_needed().unwrap();
     let mut bpf = BpfBuilder::new(PROBE)?
-        .attach_probe("tracepoint:raw_syscalls:sys_enter", "sys_enter")?
-        .attach_probe("tracepoint:raw_syscalls:sys_exit", "sys_exit")?
+        .attach_probe_str("tracepoint:raw_syscalls:sys_enter", "sys_enter")?
+        .attach_probe_str("tracepoint:raw_syscalls:sys_exit", "sys_exit")?
         .load()?;
     let data = bpf.hash_map::<U32, SyscallInfo>("DATA")?;
     let table = bpf::utils::syscall_table()?;

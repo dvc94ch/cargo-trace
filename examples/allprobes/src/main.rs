@@ -25,21 +25,21 @@ static PROBES: &[&str] = &[
 ];
 
 fn main() -> Result<()> {
-    bpf::utils::escalate_if_needed().unwrap();
+    bpf::utils::sudo::escalate_if_needed().unwrap();
     let mut bpf = BpfBuilder::new(PROBE)?
-        .attach_probe("kprobe:finish_task_switch", "kprobe")?
-        .attach_probe("kretprobe:finish_task_switch", "kretprobe")?
-        .attach_probe("uprobe:/usr/lib/libc-2.32.so:malloc", "uprobe")?
-        .attach_probe("uretprobe:/usr/lib/libc-2.32.so:free", "uretprobe")?
-        //.attach_probe("usdt:/path:probe")?
-        .attach_probe("tracepoint:raw_syscalls:sys_enter", "tracepoint")?
-        .attach_probe("profile:hz:99", "profile")?
-        .attach_probe("interval:ms:100", "interval")?
-        .attach_probe("software:cs:1", "software")?
-        .attach_probe("hardware:cache-misses:1", "hardware")?
-        //.attach_probe("watchpoint:address:length:mode", "watchpoint")?
-        //.attach_probe("kfunc:func", "kfunc")?
-        //.attach_probe("kretfunc:func", "kretfunc")?
+        .attach_probe_str("kprobe:finish_task_switch", "kprobe")?
+        .attach_probe_str("kretprobe:finish_task_switch", "kretprobe")?
+        .attach_probe_str("uprobe:/usr/lib/libc-2.32.so:malloc", "uprobe")?
+        .attach_probe_str("uretprobe:/usr/lib/libc-2.32.so:free", "uretprobe")?
+        //.attach_probe_str("usdt:/path:probe")?
+        .attach_probe_str("tracepoint:raw_syscalls:sys_enter", "tracepoint")?
+        .attach_probe_str("profile:hz:99", "profile")?
+        .attach_probe_str("interval:ms:100", "interval")?
+        .attach_probe_str("software:cs:1", "software")?
+        .attach_probe_str("hardware:cache-misses:1", "hardware")?
+        //.attach_probe_str("watchpoint:address:length:mode", "watchpoint")?
+        //.attach_probe_str("kfunc:func", "kfunc")?
+        //.attach_probe_str("kretfunc:func", "kretfunc")?
         .load()?;
 
     std::thread::sleep(Duration::from_millis(1000));

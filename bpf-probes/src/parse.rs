@@ -132,11 +132,7 @@ impl std::str::FromStr for Probe {
                     .next()
                     .ok_or(Expected("uprobe:path:symbol"))?
                     .to_string();
-                let path = iter
-                    .next()
-                    .ok_or(Expected("uprobe:path:symbol"))?
-                    .to_string()
-                    .into();
+                let path = iter.next().map(|s| s.to_string().into());
 
                 let mut iter = symbol.splitn(2, '+');
                 let symbol = iter.next().ok_or(Expected("kprobe:symbol"))?.to_string();
@@ -157,21 +153,13 @@ impl std::str::FromStr for Probe {
                     .next()
                     .ok_or(Expected("uretprobe:path:symbol"))?
                     .to_string();
-                let path = iter
-                    .next()
-                    .ok_or(Expected("uretprobe:path:symbol"))?
-                    .to_string()
-                    .into();
+                let path = iter.next().map(|s| s.to_string().into());
                 Self::Uretprobe { path, symbol }
             }
             "usdt" => {
                 let mut iter = probe_args.rsplitn(2, ':');
                 let probe = iter.next().ok_or(Expected("usdt:path:probe"))?.to_string();
-                let path = iter
-                    .next()
-                    .ok_or(Expected("usdt:path:probe"))?
-                    .to_string()
-                    .into();
+                let path = iter.next().map(|s| s.to_string().into());
                 Self::Usdt { path, probe }
             }
             "tracepoint" => {
