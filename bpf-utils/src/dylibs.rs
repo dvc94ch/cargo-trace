@@ -116,6 +116,9 @@ impl BinaryInfo {
                     }
                 }
             }
+            if first {
+                println!("{:4}: 0x{:x}", i, ip);
+            }
         }
         Ok(())
     }

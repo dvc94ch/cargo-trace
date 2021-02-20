@@ -1,7 +1,7 @@
 #![no_std]
 #![no_main]
 
-use bpf_helpers::{entry, map, program, sys, Array, HashMap};
+use bpf_helpers::{entry, map, program, sys, Array, HashMap, PidTgid};
 
 program!(0xFFFF_FFFE, b"GPL");
 
@@ -18,7 +18,7 @@ pub struct Instruction {
 }
 
 #[map]
-static ARRAY_SIZE: Array<u32> = Array::with_max_entries(1);
+static CONFIG: Array<u32> = Array::with_max_entries(2);
 #[map]
 static PC: Array<u64> = Array::with_max_entries(EHFRAME_ENTRIES);
 #[map]
@@ -44,11 +44,15 @@ fn kprobe(args: &pt_regs) {
 }
 
 fn increment_stack_counter(regs: &sys::pt_regs) {
-    let mut stack = [0; MAX_STACK_DEPTH];
-    backtrace(regs, &mut stack);
-    let mut count = USER_STACK.get(&stack).unwrap_or_default();
-    count += 1;
-    USER_STACK.insert(&stack, &count);
+    if let Some(pid) = CONFIG.get(1) {
+        if PidTgid::current().pid() == pid {
+            let mut stack = [0; MAX_STACK_DEPTH];
+            backtrace(regs, &mut stack);
+            let mut count = USER_STACK.get(&stack).unwrap_or_default();
+            count += 1;
+            USER_STACK.insert(&stack, &count);
+        }
+    }
 }
 
 fn backtrace(regs: &sys::pt_regs, stack: &mut [u64; MAX_STACK_DEPTH]) {
@@ -88,7 +92,7 @@ fn backtrace(regs: &sys::pt_regs, stack: &mut [u64; MAX_STACK_DEPTH]) {
 
 fn binary_search(rip: u64) -> u32 {
     let mut left = 0;
-    let mut right = ARRAY_SIZE.get(0).unwrap_or(1) - 1;
+    let mut right = CONFIG.get(0).unwrap_or(1) - 1;
     let mut i = 0;
     for _ in 0..MAX_BIN_SEARCH_DEPTH {
         if left > right {

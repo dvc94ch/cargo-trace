@@ -79,7 +79,6 @@ fn main() -> Result<()> {
     log::debug!("setting default path to {}", info.path().display());
     probe.set_default_path(info.path());
     let mut bpf = BpfBuilder::new(PROBE)?
-        .set_child_pid(pid)
         .attach_probe(probe, entry)?
         .load()?;
     log::debug!("loaded bpf program");
@@ -107,8 +106,9 @@ fn main() -> Result<()> {
     for (i, row) in table.rows.iter().enumerate() {
         rbx.insert(&U32::new(i as _), &row.rbx.gen().into())?;
     }
-    let mut len = bpf.array::<U32>("ARRAY_SIZE")?;
+    let mut len = bpf.array::<U32>("CONFIG")?;
     len.insert(&U32::new(0), &U32::new(table.rows.len() as _))?;
+    len.insert(&U32::new(1), &U32::new(pid.into()))?;
 
     log::debug!("running program");
     pid.cont_and_wait()?;
