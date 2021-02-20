@@ -19,3 +19,6 @@ members = [
 [patch.crates-io]
 addr2line = { path = "../addr2line" }
 object = { path = "../object" }
+
+[profile.release]
+debug = true

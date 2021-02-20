@@ -186,11 +186,10 @@ impl std::str::FromStr for Probe {
                     .next()
                     .ok_or(Expected("software:event:count"))?
                     .parse()?;
-                let count = iter.next().ok_or(Expected("software:event:count"))?;
-                let count = if count.is_empty() {
-                    None
-                } else {
+                let count = if let Some(count) = iter.next() {
                     Some(count.parse()?)
+                } else {
+                    None
                 };
                 Self::Software { event, count }
             }
@@ -200,11 +199,10 @@ impl std::str::FromStr for Probe {
                     .next()
                     .ok_or(Expected("hardware:event:count"))?
                     .parse()?;
-                let count = iter.next().ok_or(Expected("hardware:event:count"))?;
-                let count = if count.is_empty() {
-                    None
-                } else {
+                let count = if let Some(count) = iter.next() {
                     Some(count.parse()?)
+                } else {
+                    None
                 };
                 Self::Hardware { event, count }
             }

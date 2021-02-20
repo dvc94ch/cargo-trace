@@ -45,11 +45,11 @@ fn main() -> Result<()> {
             std::process::exit(status.code().unwrap());
         }
     }
-    sudo::escalate_if_needed().unwrap();
+    sudo::with_env(&["RUST_LOG"]).unwrap();
 
     let info = BinaryInfo::from_cargo_subcommand(&cmd)?;
     let table = info.elf().unwind_table()?;
-    log::debug!("{}", info.to_string());
+    log::debug!("\n{}", info.to_string());
     log::debug!("size of unwind table {}", table.rows.len());
     let mut ehframe = std::fs::OpenOptions::new()
         .write(true)
@@ -76,11 +76,13 @@ fn main() -> Result<()> {
         ProgramType::PerfEvent => "perf_event",
         _ => return Err(anyhow::anyhow!("unsupported probe {}", probe)),
     };
+    log::debug!("setting default path to {}", info.path().display());
     probe.set_default_path(info.path());
     let mut bpf = BpfBuilder::new(PROBE)?
         .set_child_pid(pid)
         .attach_probe(probe, entry)?
         .load()?;
+    log::debug!("loaded bpf program");
 
     let mut pc = bpf.array::<U64>("PC")?;
     for (i, row) in table.rows.iter().enumerate() {
