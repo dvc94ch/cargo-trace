@@ -29,8 +29,8 @@ fn main() -> Result<()> {
     let mut bpf = BpfBuilder::new(PROBE)?
         .attach_probe_str("kprobe:finish_task_switch", "kprobe")?
         .attach_probe_str("kretprobe:finish_task_switch", "kretprobe")?
-        .attach_probe_str("uprobe:/usr/lib/libc-2.32.so:malloc", "uprobe")?
-        .attach_probe_str("uretprobe:/usr/lib/libc-2.32.so:free", "uretprobe")?
+        .attach_probe_str("uprobe:/usr/lib/libc-2.33.so:malloc", "uprobe")?
+        .attach_probe_str("uretprobe:/usr/lib/libc-2.33.so:free", "uretprobe")?
         //.attach_probe_str("usdt:/path:probe")?
         .attach_probe_str("tracepoint:raw_syscalls:sys_enter", "tracepoint")?
         .attach_probe_str("profile:hz:99", "profile")?
