@@ -78,9 +78,7 @@ fn main() -> Result<()> {
     };
     log::debug!("setting default path to {}", info.path().display());
     probe.set_default_path(info.path());
-    let mut bpf = BpfBuilder::new(PROBE)?
-        .attach_probe(probe, entry)?
-        .load()?;
+    let mut bpf = BpfBuilder::new(PROBE)?.attach_probe(probe, entry)?.load()?;
     log::debug!("loaded bpf program");
 
     let mut pc = bpf.array::<U64>("PC")?;

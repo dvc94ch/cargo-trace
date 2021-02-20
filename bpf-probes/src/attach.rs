@@ -40,6 +40,7 @@ impl AttachedProbe {
     }
 
     pub fn uprobe(path: &Path, address: usize, pid: Option<u32>) -> Result<Self> {
+        log::trace!("attaching uprobe at address 0x{:x}", address);
         let mut attr: perf_event_attr = unsafe { std::mem::zeroed() };
         attr.size = std::mem::size_of::<perf_event_attr>() as _;
         attr.type_ = pmu_type("uprobe")?;

@@ -339,6 +339,7 @@ impl Probe {
     }
 
     pub fn attach(&self, program: &mut Program, pid: Option<u32>) -> Result<Vec<AttachedProbe>> {
+        log::debug!("attaching {}", self);
         let probes = match self {
             Self::Kprobe { symbol, offset } => vec![AttachedProbe::kprobe(symbol, *offset, pid)?],
             Self::Kretprobe { symbol } => vec![AttachedProbe::kretprobe(symbol, pid)?],
