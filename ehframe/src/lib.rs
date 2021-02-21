@@ -1,79 +1,153 @@
-use crate::format::{File, Header, Instruction, Op, X86_64_REGS};
 use anyhow::Result;
 use gimli::{
     CfaRule, NativeEndian, Reader, RegisterRule, UninitializedUnwindContext, UnwindSection,
 };
 use object::{Object, ObjectSection};
-use std::path::Path;
-use zerocopy::U64;
 
-pub mod format;
-
-/// Holds a single dwarf register value.
+/// Dwarf instruction.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub enum Register {
-    /// Undefined register. The value will be defined at some
-    /// later IP in the same DIE.
-    Undefined,
-    /// Value of a machine register plus offset.
-    Register(MachineRegister, i32),
-    /// Value stored at some offset from `CFA`.
-    CfaOffset(i32),
-    /// Value is the evaluation of the standard PLT
-    /// expression, ie `((rip & 15) >= 11) >> 3 + rsp`.
-    /// This is hardcoded because it is a common expression.
-    PltExpr,
-    /// This type of register is not supported.
-    Unimplemented,
+pub struct Instruction {
+    op: Op,
+    reg: Option<Reg>,
+    offset: Option<i64>,
 }
 
-impl std::fmt::Display for Register {
+impl Instruction {
+    pub fn unimpl() -> Self {
+        Self {
+            op: Op::Unimplemented,
+            reg: None,
+            offset: None,
+        }
+    }
+
+    pub fn undef() -> Self {
+        Self {
+            op: Op::Undefined,
+            reg: None,
+            offset: None,
+        }
+    }
+
+    pub fn cfa_offset(offset: i64) -> Self {
+        Self {
+            op: Op::CfaOffset,
+            reg: None,
+            offset: Some(offset),
+        }
+    }
+
+    pub fn reg_offset(reg: Reg, offset: i64) -> Self {
+        Self {
+            op: Op::Register,
+            reg: Some(reg),
+            offset: Some(offset),
+        }
+    }
+
+    pub fn plt() -> Self {
+        Self {
+            op: Op::PltExpr,
+            reg: None,
+            offset: None,
+        }
+    }
+
+    #[inline(always)]
+    pub fn op(&self) -> Op {
+        self.op
+    }
+
+    #[inline(always)]
+    pub fn reg(&self) -> Option<Reg> {
+        self.reg
+    }
+
+    #[inline(always)]
+    pub fn offset(&self) -> Option<i64> {
+        self.offset
+    }
+
+    #[inline(always)]
+    pub fn is_implemented(&self) -> bool {
+        self.op != Op::Unimplemented
+    }
+
+    #[inline(always)]
+    pub fn is_defined(&self) -> bool {
+        self.op != Op::Unimplemented && self.op != Op::Undefined
+    }
+}
+
+impl std::fmt::Display for Instruction {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            Self::Undefined => write!(f, "undef"),
-            Self::Register(mreg, offset) => {
-                let op = if *offset >= 0 { "+" } else { "" };
-                write!(f, "{}{}{}", mreg, op, offset)
-            }
-            Self::CfaOffset(offset) => {
-                let op = if *offset >= 0 { "+" } else { "" };
+        match self.op {
+            Op::Unimplemented => write!(f, "unimpl"),
+            Op::Undefined => write!(f, "undef"),
+            Op::CfaOffset => {
+                let offset = self.offset.unwrap();
+                let op = if offset >= 0 { "+" } else { "" };
                 write!(f, "cfa{}{}", op, offset)
             }
-            Self::PltExpr => write!(f, "plt"),
-            Self::Unimplemented => write!(f, "unimpl"),
+            Op::Register => {
+                let reg = self.reg.unwrap();
+                let offset = self.offset.unwrap();
+                let op = if offset >= 0 { "+" } else { "" };
+                write!(f, "{}{}{}", reg, op, offset)
+            }
+            Op::PltExpr => write!(f, "plt"),
         }
     }
 }
 
-/// A machine register (eg. %rip) among the supported ones (x86_64 only for now).
+/// Dwarf operation.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub enum MachineRegister {
-    Rsp,
-    Rbp,
-    Rbx,
-    Ra,
+#[repr(u8)]
+pub enum Op {
+    /// This type of register is not supported.
+    Unimplemented = 0,
+    /// Undefined register. The value will be defined at some
+    /// later IP in the same DIE.
+    Undefined = 1,
+    /// Value stored at some offset from `CFA`.
+    CfaOffset = 2,
+    /// Value of a machine register plus offset.
+    Register = 3,
+    /// Value is the evaluation of the standard PLT
+    /// expression, ie `((rip & 15) >= 11) >> 3 + rsp`.
+    /// This is hardcoded because it is a common expression.
+    PltExpr = 4,
 }
 
-impl MachineRegister {
-    pub fn parse(reg: gimli::Register) -> Option<Self> {
+/// Dwarf register.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[repr(u8)]
+pub enum Reg {
+    Rip = libc::REG_RIP as u8,
+    Rsp = libc::REG_RSP as u8,
+    Rbp = libc::REG_RBP as u8,
+    Rbx = libc::REG_RBX as u8,
+}
+
+impl Reg {
+    fn from_gimli(reg: gimli::Register) -> Option<Self> {
         Some(match reg {
+            gimli::X86_64::RA => Self::Rip,
             gimli::X86_64::RSP => Self::Rsp,
             gimli::X86_64::RBP => Self::Rbp,
             gimli::X86_64::RBX => Self::Rbx,
-            gimli::X86_64::RA => Self::Ra,
             _ => return None,
         })
     }
 }
 
-impl std::fmt::Display for MachineRegister {
+impl std::fmt::Display for Reg {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        use MachineRegister::*;
         match self {
-            Rsp => write!(f, "rsp"),
-            Rbp => write!(f, "rbp"),
-            Rbx => write!(f, "rbx"),
-            Ra => write!(f, "ra"),
+            Self::Rip => write!(f, "rip"),
+            Self::Rsp => write!(f, "rsp"),
+            Self::Rbp => write!(f, "rbp"),
+            Self::Rbx => write!(f, "rbx"),
         }
     }
 }
@@ -85,14 +159,14 @@ pub struct UnwindTableRow {
     pub start_address: usize,
     /// Instruction pointer end range (exclusive).
     pub end_address: usize,
-    /// Canonical frame address.
-    pub cfa: Register,
-    /// Base pointer register.
-    pub rbp: Register,
-    /// RBX, sometimes used for unwinding.
-    pub rbx: Register,
-    /// Return address.
-    pub ra: Register,
+    /// Instruction to unwind `rip` register.
+    pub rip: Instruction,
+    /// Instruction to unwind `rsp` register.
+    pub rsp: Instruction,
+    /// Instruction to unwind `rbp` register.
+    pub rbp: Instruction,
+    /// Instruction to unwind `rbx` register. Is sometimes used for unwinding.
+    pub rbx: Instruction,
 }
 
 impl UnwindTableRow {
@@ -103,78 +177,42 @@ impl UnwindTableRow {
         Ok(Self {
             start_address: row.start_address() as _,
             end_address: row.end_address() as _,
-            cfa: match row.cfa() {
+            rip: match row.register(gimli::X86_64::RA) {
+                RegisterRule::Undefined => Instruction::undef(),
+                RegisterRule::Offset(offset) => Instruction::cfa_offset(offset),
+                _ => {
+                    log::debug!("unimpl rip {:?}", row.register(gimli::X86_64::RA));
+                    Instruction::unimpl()
+                }
+            },
+            rsp: match row.cfa() {
                 CfaRule::RegisterAndOffset { register, offset } => {
-                    if let Some(reg) = MachineRegister::parse(*register) {
-                        Register::Register(reg, *offset as _)
+                    if let Some(reg) = Reg::from_gimli(*register) {
+                        Instruction::reg_offset(reg, *offset)
                     } else {
-                        println!("unimpl cfa {:?}", row.cfa());
-                        Register::Unimplemented
+                        log::debug!("unimpl rsp {:?}", row.cfa());
+                        Instruction::unimpl()
                     }
                 }
-                CfaRule::Expression(_expr) => {
-                    /*let plt_expr: [Operation<R>; 9] = [
-                        Operation::RegisterOffset {
-                            register: gimli::Register(7),
-                            offset: 8,
-                            base_type: UnitOffset(R::Offset::from_u8(0)),
-                        },
-                        Operation::RegisterOffset {
-                            register: gimli::Register(16),
-                            offset: 0,
-                            base_type: UnitOffset(R::Offset::from_u8(0)),
-                        },
-                        Operation::UnsignedConstant { value: 15 },
-                        Operation::And,
-                        Operation::UnsignedConstant { value: 10 },
-                        Operation::Ge,
-                        Operation::UnsignedConstant { value: 3 },
-                        Operation::Shl,
-                        Operation::Plus,
-                    ];
-                    let mut iter = expr.clone().operations(encoding);
-                    let mut ops = vec![];
-                    while let Some(op) = iter.next()? {
-                        ops.push(op);
-                    }
-                    if ops.as_slice() == &plt_expr[..] {
-                        Register::PltExpr
-                    } else {
-                        println!("unimpl cfa {:?}", row.cfa());
-                        Register::Unimplemented
-                    }*/
-                    println!("unimpl cfa {:?}", row.cfa());
-                    Register::Unimplemented
+                _ => {
+                    log::debug!("unimpl cfa {:?}", row.cfa());
+                    Instruction::unimpl()
                 }
             },
             rbp: match row.register(gimli::X86_64::RBP) {
-                RegisterRule::Undefined => Register::Undefined,
-                RegisterRule::Offset(offset) if offset <= i32::MAX as i64 => {
-                    Register::CfaOffset(offset as i32)
-                }
+                RegisterRule::Undefined => Instruction::undef(),
+                RegisterRule::Offset(offset) => Instruction::cfa_offset(offset),
                 _ => {
-                    println!("unimpl rbp {:?}", row.register(gimli::X86_64::RBP));
-                    Register::Unimplemented
+                    log::debug!("unimpl rbp {:?}", row.register(gimli::X86_64::RBP));
+                    Instruction::unimpl()
                 }
             },
             rbx: match row.register(gimli::X86_64::RBX) {
-                RegisterRule::Undefined => Register::Undefined,
-                RegisterRule::Offset(offset) if offset <= i32::MAX as i64 => {
-                    Register::CfaOffset(offset as i32)
-                }
+                RegisterRule::Undefined => Instruction::undef(),
+                RegisterRule::Offset(offset) => Instruction::cfa_offset(offset),
                 _ => {
-                    println!("unimpl rbx {:?}", row.register(gimli::X86_64::RBX));
-                    Register::Unimplemented
-                }
-            },
-            ra: match row.register(gimli::X86_64::RA) {
-                RegisterRule::Undefined => Register::Undefined,
-                RegisterRule::Offset(offset) if offset <= i32::MAX as i64 => {
-                    Register::CfaOffset(offset as i32)
-                }
-                _ => {
-                    println!("unimpl ra {:?}", row.register(gimli::X86_64::RA));
-                    Register::Unimplemented
+                    log::debug!("unimpl rbx {:?}", row.register(gimli::X86_64::RBX));
+                    Instruction::unimpl()
                 }
             },
         })
@@ -185,13 +223,13 @@ impl std::fmt::Display for UnwindTableRow {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
             f,
-            "0x{:<6x}-0x{:<6x} {:8} {:8} {:8} {:8}",
+            "0x{:0>6x}-0x{:0>6x} {:8} {:8} {:8} {:8}",
             self.start_address,
             self.end_address,
-            self.cfa.to_string(),
+            self.rip.to_string(),
+            self.rsp.to_string(),
             self.rbp.to_string(),
             self.rbx.to_string(),
-            self.ra.to_string()
         )
     }
 }
@@ -249,49 +287,11 @@ impl std::fmt::Display for UnwindTable {
         writeln!(
             f,
             "{:18} {:8} {:8} {:8} {:8}",
-            "ip", "cfa", "rbp", "rbx", "ra"
+            "ip", "rip", "rsp", "rbp", "rbx",
         )?;
         for row in &self.rows {
             writeln!(f, "{}", row)?;
         }
         Ok(())
-    }
-}
-
-impl UnwindTable {
-    pub fn gen(&self, path: &Path) -> Result<()> {
-        let header = Header::new(self.rows.len(), X86_64_REGS);
-        let mut file = File::create(path, header)?;
-        for (i, row) in self.rows.iter().enumerate() {
-            file.addresses_mut()[i] = U64::new(row.start_address as _);
-            file.instructions_mut(libc::REG_RSP as _).unwrap()[i] = row.cfa.gen();
-            file.instructions_mut(libc::REG_RBP as _).unwrap()[i] = row.rbp.gen();
-            file.instructions_mut(libc::REG_RIP as _).unwrap()[i] = row.ra.gen();
-            file.instructions_mut(libc::REG_RBX as _).unwrap()[i] = row.rbx.gen();
-        }
-        Ok(())
-    }
-}
-
-impl Register {
-    pub fn gen(&self) -> Instruction {
-        match self {
-            Self::Unimplemented => Instruction::new(Op::Unimplemented, 0, 0),
-            Self::Undefined => Instruction::new(Op::Undefined, 0, 0),
-            Self::CfaOffset(offset) => Instruction::new(Op::CfaOffset, 0, *offset),
-            Self::Register(reg, offset) => Instruction::new(Op::Register, reg.gen(), *offset),
-            Self::PltExpr => Instruction::new(Op::PltExpr, 0, 0),
-        }
-    }
-}
-
-impl MachineRegister {
-    pub fn gen(&self) -> u8 {
-        match self {
-            Self::Rsp => libc::REG_RSP as _,
-            Self::Rbp => libc::REG_RBP as _,
-            Self::Rbx => libc::REG_RBX as _,
-            Self::Ra => libc::REG_RIP as _,
-        }
     }
 }

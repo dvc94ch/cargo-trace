@@ -92,6 +92,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cdb031dd78e28731d87d56cc8ffef4a8f36ca26c38fe2de700543e627f8a464a"
 
 [[package]]
+name = "backtrace"
+version = "0.3.56"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9d117600f438b1707d4e4ae15d3595657288f8235a0eb593e80ecc98ab34e1bc"
+dependencies = [
+ "addr2line",
+ "cfg-if 1.0.0",
+ "libc",
+ "miniz_oxide",
+ "object",
+ "rustc-demangle",
+]
+
+[[package]]
 name = "bindgen"
 version = "0.55.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -151,6 +165,19 @@ dependencies = [
  "libbpf-rs",
  "sudo",
  "zerocopy",
+]
+
+[[package]]
+name = "bpf-backtrace"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "backtrace",
+ "bpf-utils",
+ "env_logger",
+ "findshlibs",
+ "libc",
+ "log",
 ]
 
 [[package]]
@@ -437,13 +464,10 @@ name = "ehframe"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "byteorder",
  "gimli",
  "libc",
- "memmap",
+ "log",
  "object",
- "typed-arena",
- "zerocopy",
 ]
 
 [[package]]
@@ -470,6 +494,16 @@ name = "fallible-iterator"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4443176a9f2c162692bd3d352d745ef9413eec5782a80d8fd6f8a1ac692a07f7"
+
+[[package]]
+name = "findshlibs"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "37affc18a9c7cf90b6cf6a7700dab60439a8f138ac5ebc5f12b98281d8f687c9"
+dependencies = [
+ "lazy_static",
+ "libc",
+]
 
 [[package]]
 name = "flate2"
@@ -1490,12 +1524,6 @@ dependencies = [
  "combine",
  "linked-hash-map",
 ]
-
-[[package]]
-name = "typed-arena"
-version = "2.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0685c84d5d54d1c26f7d3eb96cd41550adb97baed141a761cf335d3d33bcd0ae"
 
 [[package]]
 name = "ucd-trie"

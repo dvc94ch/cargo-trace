@@ -57,13 +57,6 @@ impl BinaryInfo {
         })
     }
 
-    pub fn precompile_ehframes(&self, path: &Path) -> Result<()> {
-        for (elf, _) in self.map.values() {
-            elf.precompile_ehframe(path)?;
-        }
-        Ok(())
-    }
-
     pub fn path(&self) -> &Path {
         &self.path
     }

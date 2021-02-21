@@ -1,14 +1,16 @@
 [package]
-name = "stack-walker"
+name = "bpf-backtrace"
 version = "0.1.0"
 authors = ["David Craven <david@craven.ch>"]
 edition = "2018"
 
 [dependencies]
 anyhow = "1.0.38"
+bpf-utils = { path = "../bpf-utils" }
 findshlibs = "0.8.0"
 libc = "0.2.85"
-libloading = "0.7.0"
+log = "0.4.14"
 
 [dev-dependencies]
 backtrace = "0.3.56"
+env_logger = "0.8.3"

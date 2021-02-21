@@ -1,7 +1,7 @@
 [workspace]
 members = [
     "bpf",
-    #"bpf-backtrace",
+    "bpf-backtrace",
     "bpf-macros",
     "bpf-helpers",
     "bpf-helpers-sys",

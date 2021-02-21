@@ -54,14 +54,6 @@ impl Elf {
         Ok(BuildId::new(self.0.obj.build_id()?.unwrap()))
     }
 
-    pub fn precompile_ehframe(&self, path: &Path) -> Result<()> {
-        let path = path.join(format!("{}.ehframe", self.build_id()?));
-        if !path.exists() {
-            self.unwind_table()?.gen(&path)?;
-        }
-        Ok(())
-    }
-
     pub fn unwind_table(&self) -> Result<UnwindTable> {
         UnwindTable::parse(&self.0.obj)
     }
