@@ -2,7 +2,7 @@ use anyhow::Result;
 use bpf::utils::{ehframe, sudo, BinaryInfo};
 use bpf::{BpfBuilder, Probe, ProgramType, I32, U16, U32, U64};
 use cargo_subcommand::Subcommand;
-use std::io::{Read, Write};
+use std::io::Read;
 use std::process::Command;
 use zerocopy::{AsBytes, FromBytes, Unaligned};
 
@@ -20,13 +20,25 @@ pub struct Instruction {
     offset: I32,
 }
 
-impl From<ehframe::format::Instruction> for Instruction {
-    fn from(ins: ehframe::format::Instruction) -> Self {
+impl From<ehframe::Instruction> for Instruction {
+    fn from(ins: ehframe::Instruction) -> Self {
         Self {
-            op: ins.op() as _,
-            reg: ins.reg(),
+            op: match ins.op() {
+                ehframe::Op::Unimplemented => 0,
+                ehframe::Op::Undefined => 1,
+                ehframe::Op::CfaOffset => 2,
+                ehframe::Op::Register => 3,
+                ehframe::Op::PltExpr => 0,
+            },
+            reg: match ins.reg() {
+                Some(ehframe::Reg::Rip) => 1,
+                Some(ehframe::Reg::Rsp) => 2,
+                Some(ehframe::Reg::Rbp) => 3,
+                Some(ehframe::Reg::Rbx) => 4,
+                None => 0,
+            },
             _padding: U16::new(0),
-            offset: I32::new(ins.offset()),
+            offset: I32::new(ins.offset().unwrap_or_default() as _),
         }
     }
 }
@@ -51,21 +63,22 @@ fn main() -> Result<()> {
     let table = info.elf().unwind_table()?;
     log::debug!("\n{}", info.to_string());
     log::debug!("size of unwind table {}", table.rows.len());
-    let mut ehframe = std::fs::OpenOptions::new()
+    /*let mut ehframe = std::fs::OpenOptions::new()
         .write(true)
         .truncate(true)
         .create(true)
         .open(".ehframe")?;
-    ehframe.write_all(table.to_string().as_bytes())?;
+    ehframe.write_all(table.to_string().as_bytes())?;*/
     let pid = info.spawn()?;
     log::debug!("loading program with pid {}", u32::from(pid));
 
     // TODO: load entire memory map
-    let mut addr = [0u8; 12];
+    /*let mut addr = [0u8; 12];
     let mut map = std::fs::File::open(format!("/proc/{}/maps", u32::from(pid)))?;
     map.read_exact(&mut addr)?;
     let offset = u64::from_str_radix(std::str::from_utf8(&addr)?, 16)?;
-    log::debug!("load address is 0x{:x}", offset);
+    log::debug!("load address is 0x{:x}", offset);*/
+    let offset = 0x5555_5555_6000;
 
     // TODO more convenience:
     // user symbols lookup where demangled == provided
@@ -78,7 +91,10 @@ fn main() -> Result<()> {
     };
     log::debug!("setting default path to {}", info.path().display());
     probe.set_default_path(info.path());
-    let mut bpf = BpfBuilder::new(PROBE)?.attach_probe(probe, entry)?.load()?;
+    let mut bpf = BpfBuilder::new(PROBE)?
+        .set_child_pid(pid) // without this we will get kernel ip
+        .attach_probe(probe, entry)?
+        .load()?;
     log::debug!("loaded bpf program");
 
     let mut pc = bpf.array::<U64>("PC")?;
@@ -90,19 +106,19 @@ fn main() -> Result<()> {
     }
     let mut rip = bpf.array::<Instruction>("RIP")?;
     for (i, row) in table.rows.iter().enumerate() {
-        rip.insert(&U32::new(i as _), &row.ra.gen().into())?;
+        rip.insert(&U32::new(i as _), &row.rip.into())?;
     }
     let mut rsp = bpf.array::<Instruction>("RSP")?;
     for (i, row) in table.rows.iter().enumerate() {
-        rsp.insert(&U32::new(i as _), &row.cfa.gen().into())?;
+        rsp.insert(&U32::new(i as _), &row.rsp.into())?;
     }
     let mut rbp = bpf.array::<Instruction>("RBP")?;
     for (i, row) in table.rows.iter().enumerate() {
-        rbp.insert(&U32::new(i as _), &row.rbp.gen().into())?;
+        rbp.insert(&U32::new(i as _), &row.rbp.into())?;
     }
     let mut rbx = bpf.array::<Instruction>("RBX")?;
     for (i, row) in table.rows.iter().enumerate() {
-        rbx.insert(&U32::new(i as _), &row.rbx.gen().into())?;
+        rbx.insert(&U32::new(i as _), &row.rbx.into())?;
     }
     let mut len = bpf.array::<U32>("CONFIG")?;
     len.insert(&U32::new(0), &U32::new(table.rows.len() as _))?;
@@ -119,7 +135,7 @@ fn main() -> Result<()> {
             if ip.get() == 0 {
                 break;
             }
-            let ip = ip.get() - offset;
+            let ip = ip.get();
             info.print_frame(i, ip as usize)?;
         }
     }

@@ -10,6 +10,7 @@ const MAX_BIN_SEARCH_DEPTH: usize = 16;
 const EHFRAME_ENTRIES: usize = 0xffff;
 
 #[derive(Clone, Copy)]
+#[repr(C)]
 pub struct Instruction {
     op: u8,
     reg: u8,
@@ -58,35 +59,48 @@ fn increment_stack_counter(regs: &sys::pt_regs) {
 fn backtrace(regs: &sys::pt_regs, stack: &mut [u64; MAX_STACK_DEPTH]) {
     let mut regs = regs.clone();
     for d in 0..MAX_STACK_DEPTH {
+        // save rip in stack trace
         stack[d] = regs.rip;
+        // exit loop if we reached the bottom of the stack
         if regs.rip == 0 {
             break;
         }
+        // search for the instruction index based on the current program counter
         let i = binary_search(regs.rip);
-        if let Some(ins) = RIP.get(i) {
-            if let Some(res) = execute_instuction(&ins, &regs) {
-                regs.rip = res;
-            } else {
-                break;
-            }
-        }
-        if let Some(ins) = RSP.get(i) {
-            if let Some(res) = execute_instuction(&ins, &regs) {
-                regs.rsp = res;
-            } else {
-                break;
-            }
-        }
-        if let Some(ins) = RBP.get(i) {
-            if let Some(res) = execute_instuction(&ins, &regs) {
-                regs.rbp = res;
-            }
-        }
-        if let Some(ins) = RBX.get(i) {
-            if let Some(res) = execute_instuction(&ins, &regs) {
-                regs.rbx = res;
-            }
-        }
+
+        let irsp = if let Some(irsp) = RSP.get(i) {
+            irsp
+        } else {
+            break;
+        };
+        let cfa = if let Some(cfa) = execute_instruction(&irsp, &regs, 0) {
+            cfa
+        } else {
+            break;
+        };
+
+        let rip = if let Some(irip) = RIP.get(i) {
+            execute_instruction(&irip, &regs, cfa).unwrap_or_default()
+        } else {
+            0
+        };
+
+        let rbp = if let Some(irbp) = RBP.get(i) {
+            execute_instruction(&irbp, &regs, cfa).unwrap_or_default()
+        } else {
+            0
+        };
+
+        let rbx = if let Some(irbx) = RBX.get(i) {
+            execute_instruction(&irbx, &regs, cfa).unwrap_or_default()
+        } else {
+            0
+        };
+
+        regs.rsp = cfa;
+        regs.rip = rip;
+        regs.rbp = rbp;
+        regs.rbx = rbx;
     }
 }
 
@@ -101,7 +115,7 @@ fn binary_search(rip: u64) -> u32 {
         i = (left + right) / 2;
         let pc = PC.get(i).unwrap_or(u64::MAX);
         if pc < rip {
-            left = i + 1;
+            left = i;
         } else {
             right = i;
         }
@@ -109,10 +123,11 @@ fn binary_search(rip: u64) -> u32 {
     i
 }
 
-fn execute_instuction(ins: &Instruction, regs: &sys::pt_regs) -> Option<u64> {
+fn execute_instruction(ins: &Instruction, regs: &sys::pt_regs, cfa: u64) -> Option<u64> {
     match ins.op {
+        1 => None,
         2 => {
-            let unsafe_ptr = (regs.rsp as i64 + ins.offset as i64) as *const core::ffi::c_void;
+            let unsafe_ptr = (cfa as i64 + ins.offset as i64) as *const core::ffi::c_void;
             let mut res: u64 = 0;
             if unsafe { sys::bpf_probe_read(&mut res as *mut _ as *mut _, 8, unsafe_ptr) } == 0 {
                 Some(res)
@@ -121,10 +136,10 @@ fn execute_instuction(ins: &Instruction, regs: &sys::pt_regs) -> Option<u64> {
             }
         }
         3 => match ins.reg {
-            10 => Some((regs.rbp as i64 + ins.offset as i64) as u64),
-            11 => Some((regs.rbx as i64 + ins.offset as i64) as u64),
-            15 => Some((regs.rsp as i64 + ins.offset as i64) as u64),
-            16 => Some((regs.rip as i64 + ins.offset as i64) as u64),
+            1 => Some((regs.rip as i64 + ins.offset as i64) as u64),
+            2 => Some((regs.rsp as i64 + ins.offset as i64) as u64),
+            3 => Some((regs.rbp as i64 + ins.offset as i64) as u64),
+            4 => Some((regs.rbx as i64 + ins.offset as i64) as u64),
             _ => None,
         },
         _ => None,
