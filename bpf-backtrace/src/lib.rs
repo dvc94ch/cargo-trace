@@ -64,8 +64,7 @@ pub struct UnwindEntry {
 
 impl UnwindEntry {
     pub fn row(&self, address: usize) -> Option<&UnwindTableRow> {
-        //println!("looking for 0x{:x}", address);
-        /*let mut left = 0;
+        let mut left = 0;
         let mut right = self.table.rows.len() - 1;
         let mut i = 0;
         for _ in 0..20 {
@@ -73,14 +72,19 @@ impl UnwindEntry {
                 break;
             }
             i = (left + right) / 2;
-            let pc = self.table.rows.get(i).map(|r| r.start_address).unwrap_or(usize::MAX);
-            if pc < rip {
-                left = i + 1;
+            let pc = self
+                .table
+                .rows
+                .get(i)
+                .map(|r| r.start_address)
+                .unwrap_or(usize::MAX);
+            if pc < address {
+                left = i;
             } else {
                 right = i;
             }
-        }*/
-        let i = match self
+        }
+        /*let i = match self
             .table
             .rows
             .binary_search_by_key(&address, |entry| entry.start_address)
@@ -88,12 +92,12 @@ impl UnwindEntry {
             Ok(i) => i,
             Err(0) => 0,
             Err(i) => i - 1,
-        };
+        };*/
         let row = &self.table.rows[i];
         if address < row.start_address || address >= row.end_address {
-            //log::debug!("missing row for 0x{:x}", address);
-            //log::debug!("closest match   0x{:x}", row.start_address);
-            //log::debug!("                0x{:x}", row.end_address);
+            log::debug!("missing row for 0x{:x}", address);
+            log::debug!("closest match   0x{:x}", row.start_address);
+            log::debug!("                0x{:x}", row.end_address);
             None
         } else {
             Some(row)
