@@ -58,8 +58,8 @@ fn main() -> Result<()> {
     let mut info = BinaryInfo::from_cargo_subcommand(&cmd)?;
 
     // TODO more convenience:
-    // user symbols lookup where demangled == provided
-    // convert tracepoint to kprobes on syscalls
+    // uprobes: find path from libname
+    // tracepoint: convert to kprobes on syscalls
     let mut probe: Probe = cmd.cmd().parse()?;
     let entry = match probe.prog_type() {
         ProgramType::Kprobe => "kprobe",
@@ -99,8 +99,29 @@ fn main() -> Result<()> {
     info.cont()?;
 
     let user_stack = bpf.hash_map::<[U64; 48], U32>("USER_STACK")?;
+    print_stacktrace(&info, user_stack.iter())?;
+
+    Ok(())
+}
+
+#[allow(unused)]
+fn print_stacktrace(info: &BinaryInfo, iter: impl Iterator<Item = ([U64; 48], U32)>) -> Result<()> {
+    for (stack, count) in iter {
+        for (i, ip) in stack.iter().enumerate() {
+            let ip = ip.get() as usize;
+            if ip == 0 {
+                break;
+            }
+            info.print_frame(i, ip)?;
+        }
+    }
+    Ok(())
+}
+
+#[allow(unused)]
+fn print_flamegraph(info: &BinaryInfo, iter: impl Iterator<Item = ([U64; 48], U32)>) -> Result<()> {
     let mut symbols = Vec::with_capacity(48);
-    for (stack, count) in user_stack.iter() {
+    for (stack, count) in iter {
         symbols.clear();
         for ip in stack.iter() {
             let ip = ip.get() as usize;
@@ -119,6 +140,5 @@ fn main() -> Result<()> {
         collapsed.push_str(&count.to_string());
         println!("{}", collapsed);
     }
-
     Ok(())
 }

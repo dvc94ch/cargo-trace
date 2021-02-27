@@ -35,7 +35,7 @@ impl BinaryInfo {
         log::debug!("loading {}", path.display());
         let mut ptracer = Ptracer::spawn(&path, args)?;
         log::debug!("loaded program with pid {}", ptracer.pid());
-        /*let address_map = AddressMap::load_pid(i32::from(ptracer.pid()) as u32)?;
+        let address_map = AddressMap::load_pid(i32::from(ptracer.pid()) as u32)?;
         let load_addr = address_map[0].start_addr;
         let offset = Elf::open(&address_map[0].path)?
             .resolve_symbol("_start", 0)?
@@ -43,7 +43,7 @@ impl BinaryInfo {
         ptracer.insert_breakpoint(load_addr + offset)?;
         ptracer.enable_breakpoint(load_addr + offset)?;
         ptracer.cont(ContinueMode::Default)?;
-        ptracer.remove_breakpoint(load_addr + offset)?;*/
+        ptracer.remove_breakpoint(load_addr + offset)?;
         let address_map = AddressMap::load_pid(i32::from(ptracer.pid()) as u32)?;
         let mut map = vec![];
         for entry in address_map.iter() {
