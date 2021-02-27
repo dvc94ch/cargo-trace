@@ -1,40 +1,27 @@
+use anyhow::Result;
 use bpf_utils::ehframe::{Instruction, Op, Reg, UnwindTable, UnwindTableRow};
 use bpf_utils::elf::Elf;
-use findshlibs::{SharedLibrary, TargetSharedLibrary};
-use std::path::PathBuf;
+use bpf_utils::maps::AddressMap;
 
 pub struct UnwindMap {
     entries: Vec<UnwindEntry>,
 }
 
 impl UnwindMap {
-    pub fn load() -> Self {
+    pub fn load() -> Result<Self> {
+        let map = AddressMap::load_self()?;
         let mut entries = vec![];
-        TargetSharedLibrary::each(|shlib| {
-            let path = shlib.name().to_str().unwrap();
-            if !path.contains("linux-vdso") {
-                let load_addr = shlib.actual_load_addr().into();
-                let len = shlib.len();
-                let elf = Elf::open(shlib.name()).unwrap();
-                let table = elf.unwind_table().unwrap();
-                entries.push(UnwindEntry {
-                    load_addr,
-                    len,
-                    path: shlib.name().into(),
-                    table,
-                });
-            }
-        });
-        entries.sort_unstable_by_key(|entry| entry.load_addr);
-        for entry in &entries {
-            log::debug!(
-                "0x{:x} 0x{:x} {}",
-                entry.load_addr,
-                entry.len,
-                entry.path.display()
-            );
+        for entry in map.iter() {
+            let elf = Elf::open(&entry.path)?;
+            let table = elf.unwind_table()?;
+            entries.push(UnwindEntry {
+                load_addr: entry.start_addr,
+                len: entry.end_addr - entry.start_addr,
+                table,
+            });
         }
-        Self { entries }
+        entries.sort_unstable_by_key(|entry| entry.load_addr);
+        Ok(Self { entries })
     }
 
     pub fn entry(&self, address: usize) -> Option<&UnwindEntry> {
@@ -58,7 +45,6 @@ impl UnwindMap {
 pub struct UnwindEntry {
     load_addr: usize,
     len: usize,
-    path: PathBuf,
     table: UnwindTable,
 }
 
@@ -207,7 +193,7 @@ fn execute_instruction(ins: &Instruction, regs: &UnwindContext, next_rsp: u64) -
 /// Call the passed function once per frame in the call stack, most recent frame first,
 /// with the current context as its sole argument.
 pub fn walk_stack(mut f: impl FnMut(&UnwindContext)) {
-    let mut unwind_map = UnwindMap::load();
+    let mut unwind_map = UnwindMap::load().unwrap();
     let mut ctx = unsafe { UnwindContext::get_context() };
     unsafe { ctx.unwind_context(&mut unwind_map) };
     while unsafe { ctx.unwind_context(&mut unwind_map) } {

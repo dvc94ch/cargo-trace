@@ -175,7 +175,6 @@ dependencies = [
  "backtrace",
  "bpf-utils",
  "env_logger",
- "findshlibs",
  "libc",
  "log",
 ]
@@ -494,16 +493,6 @@ name = "fallible-iterator"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4443176a9f2c162692bd3d352d745ef9413eec5782a80d8fd6f8a1ac692a07f7"
-
-[[package]]
-name = "findshlibs"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "37affc18a9c7cf90b6cf6a7700dab60439a8f138ac5ebc5f12b98281d8f687c9"
-dependencies = [
- "lazy_static",
- "libc",
-]
 
 [[package]]
 name = "flate2"

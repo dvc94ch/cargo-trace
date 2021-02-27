@@ -7,7 +7,6 @@ edition = "2018"
 [dependencies]
 anyhow = "1.0.38"
 bpf-utils = { path = "../bpf-utils" }
-findshlibs = "0.8.0"
 libc = "0.2.85"
 log = "0.4.14"
 
