@@ -66,7 +66,7 @@ impl AddressMap {
             entry.0 = usize::min(entry.0, start);
             entry.1 = usize::max(entry.1, end);
         }
-        let map = entries
+        let mut map: Vec<AddressEntry> = entries
             .into_iter()
             .map(|(path, (start, end))| AddressEntry {
                 path,
@@ -74,11 +74,29 @@ impl AddressMap {
                 end_addr: end,
             })
             .collect();
+        map.sort_unstable_by_key(|entry| entry.start_addr);
         Ok(Self { map })
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &AddressEntry> {
         self.map.iter()
+    }
+
+    pub fn entry(&self, address: usize) -> Option<&AddressEntry> {
+        let i = match self
+            .map
+            .binary_search_by_key(&address, |entry| entry.start_addr)
+        {
+            Ok(i) => i,
+            Err(0) => 0,
+            Err(i) => i - 1,
+        };
+        let entry = &self.map[i];
+        if address < entry.start_addr || address > entry.end_addr {
+            None
+        } else {
+            Some(entry)
+        }
     }
 }
 

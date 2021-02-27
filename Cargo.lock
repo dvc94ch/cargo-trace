@@ -246,6 +246,7 @@ dependencies = [
  "ehframe",
  "libc",
  "locate-dwarf",
+ "log",
  "memmap",
  "nix 0.19.1",
  "spawn-ptrace",

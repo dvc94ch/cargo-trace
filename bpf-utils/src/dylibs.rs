@@ -23,6 +23,7 @@ impl BinaryInfo {
             cmd.target().unwrap_or(""),
             cmd.profile().as_ref(),
         )?;
+        log::debug!("{:?}", cmd);
         let artifact = &cmd.artifacts()[0];
         let path = cmd
             .target_dir()
@@ -34,6 +35,7 @@ impl BinaryInfo {
     }
 
     pub fn new(path: &Path, search_paths: &[PathBuf]) -> Result<Self> {
+        log::debug!("loading {}", path.display());
         let path = std::fs::canonicalize(path)?;
         let mut map = HashMap::with_capacity(10);
         let mut todo = vec![path.clone()];

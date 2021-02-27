@@ -11,6 +11,7 @@ cargo-subcommand = "0.5.0"
 ehframe = { path = "../ehframe" }
 libc = "0.2.86"
 locate-dwarf = "0.1.0"
+log = "0.4.14"
 memmap = "0.7.0"
 nix = "0.19.1"
 spawn-ptrace = "0.1.2"

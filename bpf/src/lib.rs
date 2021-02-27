@@ -16,6 +16,7 @@ pub mod utils {
     pub use bpf_utils::ehframe;
     pub use bpf_utils::elf::{Dwarf, Elf};
     pub use bpf_utils::kallsyms::{KernelSymbol, KernelSymbolTable};
+    pub use bpf_utils::maps::{AddressEntry, AddressMap};
     pub use bpf_utils::syscall::syscall_table;
     pub use sudo;
 }
