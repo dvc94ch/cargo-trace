@@ -2,6 +2,7 @@ use anyhow::Result;
 use bpf::utils::{ehframe, sudo, AddressMap, BinaryInfo, Elf};
 use bpf::{BpfBuilder, Probe, ProgramType, I32, U16, U32, U64};
 use cargo_subcommand::Subcommand;
+use std::collections::HashMap;
 use std::process::Command;
 use zerocopy::{AsBytes, FromBytes, Unaligned};
 
@@ -63,6 +64,7 @@ fn main() -> Result<()> {
     let pid = info.spawn()?;
     log::debug!("loading program with pid {}", u32::from(pid));
     let map = AddressMap::load_pid(u32::from(pid))?;
+    log::debug!("address map is: \n{}", map);
 
     // TODO more convenience:
     // user symbols lookup where demangled == provided
@@ -81,9 +83,14 @@ fn main() -> Result<()> {
         .load()?;
     log::debug!("loaded bpf program");
 
+    let mut build_ids = HashMap::new();
     let mut i = 0;
     for entry in map.iter() {
-        let table = Elf::open(&entry.path)?.unwind_table()?;
+        let elf = Elf::open(&entry.path)?;
+        let table = elf.unwind_table()?;
+        let build_id = elf.build_id()?;
+        build_ids.insert(entry.path.clone(), build_id);
+
         for row in table.rows.iter() {
             let addr = entry.start_addr + row.start_address;
             let mut pc = bpf.array::<U64>("PC")?;
@@ -106,18 +113,21 @@ fn main() -> Result<()> {
     pid.cont_and_wait()?;
 
     // TODO create a flamegraph
-    let user_stack = bpf.hash_map::<[U64; 24], U32>("USER_STACK")?;
+    let user_stack = bpf.hash_map::<[U64; 32], U32>("USER_STACK")?;
     for (stack, count) in user_stack.iter() {
         println!("stack observed {} times:", count);
         for (i, ip) in stack.iter().enumerate() {
-            let mut ip = ip.get() as usize;
+            let ip = ip.get() as usize;
             if ip == 0 {
                 break;
             }
             if let Some(entry) = map.entry(ip) {
-                ip -= entry.start_addr;
+                let offset = ip - entry.start_addr;
+                let build_id = build_ids.get(&entry.path).unwrap();
+                info.print_frame(i, build_id, offset)?;
+            } else {
+                println!("0x{:x}", ip);
             }
-            info.print_frame(i, ip as usize)?;
         }
     }
 

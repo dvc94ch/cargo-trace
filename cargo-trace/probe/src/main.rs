@@ -5,7 +5,7 @@ use bpf_helpers::{entry, map, program, sys, Array, HashMap, PidTgid};
 
 program!(0xFFFF_FFFE, b"GPL");
 
-const MAX_STACK_DEPTH: usize = 24;
+const MAX_STACK_DEPTH: usize = 32;
 const MAX_BIN_SEARCH_DEPTH: usize = 16;
 const EHFRAME_ENTRIES: usize = 0xffff;
 

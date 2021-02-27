@@ -71,11 +71,9 @@ impl Elf {
         Ok(None)
     }
 
-    // TODO do instruction pointers correspond to a symbol or a symbol + offset?
-    // are symbols ordered by address?
     pub fn resolve_address(&self, address: usize) -> Result<Option<&str>> {
         for sym in self.0.obj.symbols() {
-            if sym.address() == address as _ {
+            if sym.address() <= address as u64 && sym.address() + sym.size() > address as u64 {
                 return Ok(Some(sym.name()?));
             }
         }

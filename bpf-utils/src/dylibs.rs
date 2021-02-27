@@ -84,21 +84,22 @@ impl BinaryInfo {
         Ok(Pid(child.id()))
     }
 
-    pub fn print_frame(&self, i: usize, ip: usize) -> Result<()> {
-        if let Some(dwarf) = self.dwarf() {
-            let mut iter = dwarf.find_frames(ip)?;
+    pub fn print_frame(&self, i: usize, build_id: &BuildId, offset: usize) -> Result<()> {
+        let (elf, dwarf) = self.map.get(&build_id).unwrap();
+        if let Some(dwarf) = dwarf {
+            let mut iter = dwarf.find_frames(offset)?;
             let mut first = true;
             while let Some(frame) = iter.next()? {
                 if first {
                     print!("{:4}: ", i);
                     first = false;
                 } else {
-                    print!("    : ");
+                    print!("      ");
                 }
                 if let Some(function) = frame.function {
                     println!("{}", function.demangle()?);
                 } else {
-                    println!("0x{:x}", ip);
+                    println!("0x{:x}", offset);
                 }
                 if let Some(location) = frame.location {
                     if let (Some(file), Some(line)) = (location.file, location.line) {
@@ -111,10 +112,16 @@ impl BinaryInfo {
                     }
                 }
             }
-            if first {
-                println!("{:4}: 0x{:x}", i, ip);
+            if !first {
+                return Ok(());
             }
         }
+        if let Some(symbol) = elf.resolve_address(offset)? {
+            println!("{:4}: {}", i, symbol);
+        } else {
+            println!("{:4}: 0x{:x}", i, offset);
+        }
+        println!("             at {}", elf.path().display());
         Ok(())
     }
 }
