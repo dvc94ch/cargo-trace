@@ -1,27 +1,25 @@
-// Adaptec from https://github.com/rust-windowning/android-ndk-rs/blob/master/ndk-build/src/dylibs.rs
 use crate::elf::{BuildId, Dwarf, Elf};
 use crate::maps::AddressMap;
+use addr2line::Location;
 use anyhow::Result;
 use cargo_subcommand::{CrateType, Subcommand};
 use ptracer::{ContinueMode, Ptracer};
-use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+
+pub struct Binary {
+    pub start_addr: usize,
+    pub end_addr: usize,
+    pub elf: Elf,
+    pub dwarf: Option<Dwarf>,
+}
 
 pub struct BinaryInfo {
-    path: PathBuf,
-    build_id: BuildId,
-    map: HashMap<BuildId, (Elf, Option<Dwarf>)>,
+    map: Vec<Binary>,
     ptracer: Ptracer,
-    address_map: AddressMap,
 }
 
 impl BinaryInfo {
     pub fn from_cargo_subcommand(cmd: &Subcommand) -> Result<Self> {
-        let search_paths = get_cargo_search_paths(
-            cmd.target_dir(),
-            cmd.target().unwrap_or(""),
-            cmd.profile().as_ref(),
-        )?;
         log::debug!("{:?}", cmd);
         let artifact = &cmd.artifacts()[0];
         let path = cmd
@@ -30,58 +28,51 @@ impl BinaryInfo {
             .join(cmd.profile())
             .join(artifact.as_ref())
             .join(artifact.file_name(CrateType::Bin, cmd.target().unwrap_or("")));
-        Self::new(&path, &search_paths, &[])
+        Self::new(&path, &[])
     }
 
-    pub fn new(path: &Path, search_paths: &[PathBuf], args: &[String]) -> Result<Self> {
+    pub fn new(path: &Path, args: &[String]) -> Result<Self> {
         log::debug!("loading {}", path.display());
-        let path = std::fs::canonicalize(path)?;
-        let mut map = HashMap::with_capacity(10);
-        let mut todo = vec![path.clone()];
-        let mut root_build_id = None;
-        while let Some(path) = todo.pop() {
-            let elf = Elf::open(&path)?;
-            let build_id = elf.build_id()?;
-            if root_build_id.is_none() {
-                root_build_id = Some(build_id);
-            }
-            for lib in elf.dynamic()? {
-                todo.push(find_library_path(search_paths, lib)?.unwrap());
-            }
-            let dwarf = elf.dwarf().ok();
-            map.insert(build_id, (elf, dwarf));
-        }
-        let build_id = root_build_id.unwrap();
         let mut ptracer = Ptracer::spawn(&path, args)?;
         log::debug!("loaded program with pid {}", ptracer.pid());
         /*let address_map = AddressMap::load_pid(i32::from(ptracer.pid()) as u32)?;
-        let offset = map.get(&build_id).unwrap().0.resolve_symbol("_start", 0)?.unwrap();
-        let load_addr = address_map.iter().find(|entry| entry.path == path).unwrap().start_addr;
+        let load_addr = address_map[0].start_addr;
+        let offset = Elf::open(&address_map[0].path)?
+            .resolve_symbol("_start", 0)?
+            .unwrap();
         ptracer.insert_breakpoint(load_addr + offset)?;
         ptracer.enable_breakpoint(load_addr + offset)?;
         ptracer.cont(ContinueMode::Default)?;
         ptracer.remove_breakpoint(load_addr + offset)?;*/
         let address_map = AddressMap::load_pid(i32::from(ptracer.pid()) as u32)?;
-        log::debug!("address map is: \n{}", address_map);
-        Ok(Self {
-            path,
-            build_id,
-            map,
-            ptracer,
-            address_map,
-        })
+        let mut map = vec![];
+        for entry in address_map.iter() {
+            let elf = Elf::open(&entry.path)?;
+            let dwarf = elf.dwarf().ok();
+            map.push(Binary {
+                start_addr: entry.start_addr,
+                end_addr: entry.end_addr,
+                elf,
+                dwarf,
+            });
+        }
+        Ok(Self { map, ptracer })
     }
 
     pub fn path(&self) -> &Path {
-        &self.path
+        self.map[0].elf.path()
+    }
+
+    pub fn build_id(&self) -> Result<BuildId> {
+        Ok(self.map[0].elf.build_id()?)
     }
 
     pub fn elf(&self) -> &Elf {
-        &self.map.get(&self.build_id).unwrap().0
+        &self.map[0].elf
     }
 
     pub fn dwarf(&self) -> Option<&Dwarf> {
-        self.map.get(&self.build_id).unwrap().1.as_ref()
+        self.map[0].dwarf.as_ref()
     }
 
     pub fn ptracer(&self) -> &Ptracer {
@@ -92,130 +83,110 @@ impl BinaryInfo {
         i32::from(self.ptracer.pid()) as _
     }
 
-    pub fn cont_and_wait(&self) -> Result<()> {
-        ptracer::nix::sys::ptrace::cont(self.ptracer.pid(), None)?;
-        ptracer::nix::sys::wait::waitpid(self.ptracer.pid(), None)?;
+    pub fn cont(&mut self) -> Result<()> {
+        self.ptracer.cont(ContinueMode::Default)?;
         Ok(())
     }
 
-    pub fn address_map(&self) -> &AddressMap {
-        &self.address_map
-    }
-
-    pub fn print_frame(&self, i: usize, build_id: &BuildId, offset: usize) -> Result<()> {
-        let (elf, dwarf) = self.map.get(&build_id).unwrap();
-        if let Some(dwarf) = dwarf {
-            let mut iter = dwarf.find_frames(offset)?;
-            let mut first = true;
-            while let Some(frame) = iter.next()? {
-                if first {
-                    print!("{:4}: ", i);
-                    first = false;
-                } else {
-                    print!("      ");
-                }
-                if let Some(function) = frame.function {
-                    println!("{}", function.demangle()?);
-                } else {
-                    println!("0x{:x}", offset);
-                }
-                if let Some(location) = frame.location {
-                    if let (Some(file), Some(line)) = (location.file, location.line) {
-                        print!("             at {}:{}", file, line);
-                    }
-                    if let Some(col) = location.column {
-                        println!(":{}", col);
-                    } else {
-                        println!("");
-                    }
-                }
-            }
-            if !first {
-                return Ok(());
-            }
-        }
-        if let Some(symbol) = elf.resolve_address(offset)? {
-            println!("{:4}: {}", i, symbol);
+    pub fn binary(&self, ip: usize) -> Option<&Binary> {
+        let i = match self.map.binary_search_by_key(&ip, |entry| entry.start_addr) {
+            Ok(i) => i,
+            Err(0) => 0,
+            Err(i) => i - 1,
+        };
+        let entry = &self.map[i];
+        if ip < entry.start_addr || ip > entry.end_addr {
+            None
         } else {
-            println!("{:4}: 0x{:x}", i, offset);
+            Some(entry)
         }
-        println!("             at {}", elf.path().display());
+    }
+
+    pub fn resolve_symbol(&self, ip: usize) -> Result<Option<String>> {
+        if let Some(entry) = self.binary(ip) {
+            let offset = ip - entry.start_addr;
+            if let Some(dwarf) = entry.dwarf.as_ref() {
+                if let Some(frame) = dwarf.find_frames(offset)?.next()? {
+                    if let Some(function) = frame.function {
+                        return Ok(Some(function.demangle()?.to_string()));
+                    }
+                }
+            }
+            if let Some(symbol) = entry.elf.resolve_address(offset)? {
+                return Ok(Some(symbol.to_owned()));
+            }
+        }
+        Ok(None)
+    }
+
+    pub fn resolve_location(&self, ip: usize) -> Result<Option<Location<'_>>> {
+        if let Some(entry) = self.binary(ip) {
+            let offset = ip - entry.start_addr;
+            if let Some(dwarf) = entry.dwarf.as_ref() {
+                if let Some(frame) = dwarf.find_frames(offset)?.next()? {
+                    if let Some(loc) = frame.location {
+                        return Ok(Some(loc));
+                    }
+                }
+            }
+            return Ok(Some(Location {
+                file: entry.elf.path().to_str(),
+                line: None,
+                column: None,
+            }));
+        }
+        Ok(None)
+    }
+
+    pub fn print_frame(&self, i: usize, ip: usize) -> Result<()> {
+        let symbol = self
+            .resolve_symbol(ip)?
+            .unwrap_or_else(|| format!("0x{:x}", ip));
+        let location = self.resolve_location(ip)?;
+        println!("{:4}: {}", i, symbol);
+        if let Some(location) = location {
+            if let Some(file) = location.file {
+                print!("             at {}", file);
+            }
+            if let Some(line) = location.line {
+                print!(":{}", line);
+            }
+            if let Some(col) = location.column {
+                print!(":{}", col);
+            }
+            println!("");
+        }
         Ok(())
+    }
+}
+
+impl std::ops::Deref for BinaryInfo {
+    type Target = [Binary];
+
+    fn deref(&self) -> &Self::Target {
+        &self.map
     }
 }
 
 impl std::fmt::Display for BinaryInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        for (build_id, (elf, dwarf)) in &self.map {
-            if let Some(dwarf) = dwarf {
-                writeln!(
-                    f,
-                    "{} {} {}",
-                    build_id,
-                    elf.path().display(),
-                    dwarf.path().display()
-                )?;
+        for binary in &self.map {
+            write!(
+                f,
+                "0x{:x}-0x{:x} {} {}",
+                binary.start_addr,
+                binary.end_addr,
+                binary.elf.build_id().unwrap(),
+                binary.elf.path().display()
+            )?;
+            if let Some(dwarf) = binary.dwarf.as_ref() {
+                writeln!(f, " {}", dwarf.path().display())?;
             } else {
-                writeln!(f, "{} {}", build_id, elf.path().display())?;
+                writeln!(f, "")?;
             }
         }
         Ok(())
     }
-}
-
-fn get_system_search_paths() -> Vec<PathBuf> {
-    vec![PathBuf::from("/usr/lib")]
-}
-
-fn get_cargo_search_paths(
-    target_dir: &Path,
-    target_triple: &str,
-    target_profile: &Path,
-) -> Result<Vec<PathBuf>> {
-    let mut paths = get_system_search_paths();
-
-    let deps_dir = target_dir
-        .join(target_triple)
-        .join(target_profile)
-        .join("build");
-
-    for dep_dir in deps_dir.read_dir()? {
-        let output_file = dep_dir?.path().join("output");
-        if output_file.is_file() {
-            use std::{
-                fs::File,
-                io::{BufRead, BufReader},
-            };
-            for line in BufReader::new(File::open(output_file)?).lines() {
-                let line = line?;
-                if line.starts_with("cargo:rustc-link-search=") {
-                    let mut pie = line.split('=');
-                    let (kind, path) = match (pie.next(), pie.next(), pie.next()) {
-                        (Some(_), Some(kind), Some(path)) => (kind, path),
-                        (Some(_), Some(path), None) => ("all", path),
-                        _ => unreachable!(),
-                    };
-                    match kind {
-                        // FIXME: which kinds of search path we interested in
-                        "dependency" | "native" | "all" => paths.push(path.into()),
-                        _ => (),
-                    };
-                }
-            }
-        }
-    }
-
-    Ok(paths)
-}
-
-fn find_library_path<S: AsRef<Path>>(paths: &[PathBuf], library: S) -> Result<Option<PathBuf>> {
-    for path in paths {
-        let lib_path = path.join(&library);
-        if lib_path.exists() {
-            return Ok(Some(std::fs::canonicalize(lib_path)?));
-        }
-    }
-    Ok(None)
 }
 
 #[cfg(test)]

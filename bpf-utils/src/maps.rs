@@ -2,6 +2,7 @@ use anyhow::Result;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
+use std::ops::Deref;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug)]
@@ -77,26 +78,13 @@ impl AddressMap {
         map.sort_unstable_by_key(|entry| entry.start_addr);
         Ok(Self { map })
     }
+}
 
-    pub fn iter(&self) -> impl Iterator<Item = &AddressEntry> {
-        self.map.iter()
-    }
+impl Deref for AddressMap {
+    type Target = [AddressEntry];
 
-    pub fn entry(&self, address: usize) -> Option<&AddressEntry> {
-        let i = match self
-            .map
-            .binary_search_by_key(&address, |entry| entry.start_addr)
-        {
-            Ok(i) => i,
-            Err(0) => 0,
-            Err(i) => i - 1,
-        };
-        let entry = &self.map[i];
-        if address < entry.start_addr || address > entry.end_addr {
-            None
-        } else {
-            Some(entry)
-        }
+    fn deref(&self) -> &Self::Target {
+        &self.map
     }
 }
 

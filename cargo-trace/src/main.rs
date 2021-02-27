@@ -1,8 +1,7 @@
 use anyhow::Result;
-use bpf::utils::{ehframe, sudo, BinaryInfo, Elf};
+use bpf::utils::{ehframe, sudo, BinaryInfo};
 use bpf::{BpfBuilder, Probe, ProgramType, I32, U16, U32, U64};
 use cargo_subcommand::Subcommand;
-use std::collections::HashMap;
 use std::process::Command;
 use zerocopy::{AsBytes, FromBytes, Unaligned};
 
@@ -59,7 +58,7 @@ fn main() -> Result<()> {
     }
     sudo::with_env(&["RUST_LOG"]).unwrap();
 
-    let info = BinaryInfo::from_cargo_subcommand(&cmd)?;
+    let mut info = BinaryInfo::from_cargo_subcommand(&cmd)?;
 
     // TODO more convenience:
     // user symbols lookup where demangled == provided
@@ -78,16 +77,11 @@ fn main() -> Result<()> {
         .load()?;
     log::debug!("loaded bpf program");
 
-    let mut build_ids = HashMap::new();
     let mut i = 0;
-    for entry in info.address_map().iter() {
-        let elf = Elf::open(&entry.path)?;
-        let table = elf.unwind_table()?;
-        let build_id = elf.build_id()?;
-        build_ids.insert(entry.path.clone(), build_id);
-
+    for binary in info.iter() {
+        let table = binary.elf.unwind_table()?;
         for row in table.rows.iter() {
-            let addr = entry.start_addr + row.start_address;
+            let addr = binary.start_addr + row.start_address;
             let mut pc = bpf.array::<U64>("PC")?;
             pc.insert(&U32::new(i as _), &U64::new(addr as _))?;
 
@@ -105,25 +99,28 @@ fn main() -> Result<()> {
     len.insert(&U32::new(1), &U32::new(info.pid()))?;
 
     log::debug!("running program");
-    info.cont_and_wait()?;
+    info.cont()?;
 
-    // TODO create a flamegraph
     let user_stack = bpf.hash_map::<[U64; 48], U32>("USER_STACK")?;
+    let mut symbols = Vec::with_capacity(48);
     for (stack, count) in user_stack.iter() {
-        println!("stack observed {} times:", count);
-        for (i, ip) in stack.iter().enumerate() {
+        symbols.clear();
+        for ip in stack.iter() {
             let ip = ip.get() as usize;
             if ip == 0 {
                 break;
             }
-            if let Some(entry) = info.address_map().entry(ip) {
-                let offset = ip - entry.start_addr;
-                let build_id = build_ids.get(&entry.path).unwrap();
-                info.print_frame(i, build_id, offset)?;
+            if let Some(symbol) = info.resolve_symbol(ip)? {
+                symbols.push(symbol);
             } else {
-                println!("0x{:x}", ip);
+                break;
             }
         }
+        symbols.reverse();
+        let mut collapsed = symbols.join(";");
+        collapsed.push(' ');
+        collapsed.push_str(&count.to_string());
+        println!("{}", collapsed);
     }
 
     Ok(())
