@@ -5,7 +5,9 @@ use bpf_helpers::{entry, map, program, sys, Array, HashMap, PidTgid};
 
 program!(0xFFFF_FFFE, b"GPL");
 
-const MAX_STACK_DEPTH: usize = 32;
+// absolute maximum would be 512 byte stack size limit / 8 byte address = 64. but since
+// we need some stack for other variables this needs to be lower.
+const MAX_STACK_DEPTH: usize = 48;
 const MAX_BIN_SEARCH_DEPTH: usize = 16;
 const EHFRAME_ENTRIES: usize = 0xffff;
 
@@ -76,7 +78,11 @@ fn backtrace(regs: &sys::pt_regs, stack: &mut [u64; MAX_STACK_DEPTH]) {
         };
 
         let rip = if let Some(irip) = RIP.get(i) {
-            execute_instruction(&irip, &regs, cfa).unwrap_or_default()
+            if let Some(rip) = execute_instruction(&irip, &regs, cfa) {
+                rip
+            } else {
+                break;
+            }
         } else {
             0
         };

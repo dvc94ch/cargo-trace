@@ -1,4 +1,5 @@
 fn main() {
+    //println!("main");
     env_logger::init();
     fill_my_stack1(10);
 }
@@ -32,6 +33,5 @@ fn stack_filled() {
             );
         });
     });*/
-    for _ in 0..100000 {
-    }
+    for _ in 0..1000000 {}
 }

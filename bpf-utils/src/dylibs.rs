@@ -1,19 +1,18 @@
 // Adaptec from https://github.com/rust-windowning/android-ndk-rs/blob/master/ndk-build/src/dylibs.rs
 use crate::elf::{BuildId, Dwarf, Elf};
+use crate::maps::AddressMap;
 use anyhow::Result;
 use cargo_subcommand::{CrateType, Subcommand};
-use nix::sys::ptrace;
-use nix::sys::wait::waitpid;
-use spawn_ptrace::CommandPtraceSpawn;
+use ptracer::{ContinueMode, Ptracer};
 use std::collections::HashMap;
-use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 pub struct BinaryInfo {
     path: PathBuf,
     build_id: BuildId,
     map: HashMap<BuildId, (Elf, Option<Dwarf>)>,
+    ptracer: Ptracer,
+    address_map: AddressMap,
 }
 
 impl BinaryInfo {
@@ -31,10 +30,10 @@ impl BinaryInfo {
             .join(cmd.profile())
             .join(artifact.as_ref())
             .join(artifact.file_name(CrateType::Bin, cmd.target().unwrap_or("")));
-        Self::new(&path, &search_paths)
+        Self::new(&path, &search_paths, &[])
     }
 
-    pub fn new(path: &Path, search_paths: &[PathBuf]) -> Result<Self> {
+    pub fn new(path: &Path, search_paths: &[PathBuf], args: &[String]) -> Result<Self> {
         log::debug!("loading {}", path.display());
         let path = std::fs::canonicalize(path)?;
         let mut map = HashMap::with_capacity(10);
@@ -52,10 +51,24 @@ impl BinaryInfo {
             let dwarf = elf.dwarf().ok();
             map.insert(build_id, (elf, dwarf));
         }
+        let build_id = root_build_id.unwrap();
+        let mut ptracer = Ptracer::spawn(&path, args)?;
+        log::debug!("loaded program with pid {}", ptracer.pid());
+        /*let address_map = AddressMap::load_pid(i32::from(ptracer.pid()) as u32)?;
+        let offset = map.get(&build_id).unwrap().0.resolve_symbol("_start", 0)?.unwrap();
+        let load_addr = address_map.iter().find(|entry| entry.path == path).unwrap().start_addr;
+        ptracer.insert_breakpoint(load_addr + offset)?;
+        ptracer.enable_breakpoint(load_addr + offset)?;
+        ptracer.cont(ContinueMode::Default)?;
+        ptracer.remove_breakpoint(load_addr + offset)?;*/
+        let address_map = AddressMap::load_pid(i32::from(ptracer.pid()) as u32)?;
+        log::debug!("address map is: \n{}", address_map);
         Ok(Self {
             path,
-            build_id: root_build_id.unwrap(),
+            build_id,
             map,
+            ptracer,
+            address_map,
         })
     }
 
@@ -71,17 +84,22 @@ impl BinaryInfo {
         self.map.get(&self.build_id).unwrap().1.as_ref()
     }
 
-    pub fn spawn(&self) -> Result<Pid> {
-        self.spawn_with_args::<_, &str>(std::iter::empty())
+    pub fn ptracer(&self) -> &Ptracer {
+        &self.ptracer
     }
 
-    pub fn spawn_with_args<I, S>(&self, args: I) -> Result<Pid>
-    where
-        I: IntoIterator<Item = S>,
-        S: AsRef<OsStr>,
-    {
-        let child = Command::new(&self.path).args(args).spawn_ptrace()?;
-        Ok(Pid(child.id()))
+    pub fn pid(&self) -> u32 {
+        i32::from(self.ptracer.pid()) as _
+    }
+
+    pub fn cont_and_wait(&self) -> Result<()> {
+        ptracer::nix::sys::ptrace::cont(self.ptracer.pid(), None)?;
+        ptracer::nix::sys::wait::waitpid(self.ptracer.pid(), None)?;
+        Ok(())
+    }
+
+    pub fn address_map(&self) -> &AddressMap {
+        &self.address_map
     }
 
     pub fn print_frame(&self, i: usize, build_id: &BuildId, offset: usize) -> Result<()> {
@@ -198,25 +216,6 @@ fn find_library_path<S: AsRef<Path>>(paths: &[PathBuf], library: S) -> Result<Op
         }
     }
     Ok(None)
-}
-
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct Pid(u32);
-
-impl Pid {
-    pub fn cont_and_wait(&self) -> Result<()> {
-        use nix::unistd::Pid;
-        let pid = Pid::from_raw(self.0 as _);
-        ptrace::cont(pid, None)?;
-        waitpid(pid, None)?;
-        Ok(())
-    }
-}
-
-impl From<Pid> for u32 {
-    fn from(pid: Pid) -> Self {
-        pid.0
-    }
 }
 
 #[cfg(test)]

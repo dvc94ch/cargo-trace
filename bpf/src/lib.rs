@@ -12,7 +12,7 @@ pub type U32 = zerocopy::byteorder::U32<byteorder::NativeEndian>;
 pub type U64 = zerocopy::byteorder::U64<byteorder::NativeEndian>;
 
 pub mod utils {
-    pub use bpf_utils::dylibs::{BinaryInfo, Pid};
+    pub use bpf_utils::dylibs::BinaryInfo;
     pub use bpf_utils::ehframe;
     pub use bpf_utils::elf::{Dwarf, Elf};
     pub use bpf_utils::kallsyms::{KernelSymbol, KernelSymbolTable};
