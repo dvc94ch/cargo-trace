@@ -97,8 +97,8 @@ pub struct UnwindContext {
     load_addr: usize,
     rip: usize,
     rsp: usize,
-    rbp: usize,
-    rbx: usize,
+    //rbp: usize,
+    //rbx: usize,
 }
 
 impl UnwindContext {
@@ -115,8 +115,8 @@ impl UnwindContext {
             load_addr: 0,
             rip: ctx.uc_mcontext.gregs[libc::REG_RIP as usize] as usize,
             rsp: ctx.uc_mcontext.gregs[libc::REG_RSP as usize] as usize,
-            rbp: ctx.uc_mcontext.gregs[libc::REG_RBP as usize] as usize,
-            rbx: ctx.uc_mcontext.gregs[libc::REG_RBX as usize] as usize,
+            //rbp: ctx.uc_mcontext.gregs[libc::REG_RBP as usize] as usize,
+            //rbx: ctx.uc_mcontext.gregs[libc::REG_RBX as usize] as usize,
         }
     }
 
@@ -145,13 +145,13 @@ impl UnwindContext {
 
         let rsp = execute_instruction(&row.rsp, self, 0).unwrap();
         let rip = execute_instruction(&row.rip, self, rsp).unwrap_or_default();
-        let rbp = execute_instruction(&row.rbp, self, rsp).unwrap_or_default();
-        let rbx = execute_instruction(&row.rbx, self, rsp).unwrap_or_default();
+        //let rbp = execute_instruction(&row.rbp, self, rsp).unwrap_or_default();
+        //let rbx = execute_instruction(&row.rbx, self, rsp).unwrap_or_default();
 
         self.rip = rip as usize;
         self.rsp = rsp as usize;
-        self.rbp = rbp as usize;
-        self.rbx = rbx as usize;
+        //self.rbp = rbp as usize;
+        //self.rbx = rbx as usize;
 
         true
     }
@@ -169,11 +169,11 @@ impl UnwindContext {
     }
 
     pub fn rbp(&self) -> usize {
-        self.rbp
+        0 //self.rbp
     }
 
     pub fn rbx(&self) -> usize {
-        self.rbx
+        0 //self.rbx
     }
 }
 
@@ -184,8 +184,8 @@ fn execute_instruction(ins: &Instruction, regs: &UnwindContext, next_rsp: u64) -
         }
         (Op::Register, Some(Reg::Rip), Some(offset)) => Some((regs.rip as i64 + offset) as u64),
         (Op::Register, Some(Reg::Rsp), Some(offset)) => Some((regs.rsp as i64 + offset) as u64),
-        (Op::Register, Some(Reg::Rbp), Some(offset)) => Some((regs.rbp as i64 + offset) as u64),
-        (Op::Register, Some(Reg::Rbx), Some(offset)) => Some((regs.rbx as i64 + offset) as u64),
+        //(Op::Register, Some(Reg::Rbp), Some(offset)) => Some((regs.rbp as i64 + offset) as u64),
+        //(Op::Register, Some(Reg::Rbx), Some(offset)) => Some((regs.rbx as i64 + offset) as u64),
         _ => None,
     }
 }

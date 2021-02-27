@@ -5,7 +5,7 @@ use bpf_helpers::{entry, map, program, sys, Array, HashMap, PidTgid};
 
 program!(0xFFFF_FFFE, b"GPL");
 
-const MAX_STACK_DEPTH: usize = 4;
+const MAX_STACK_DEPTH: usize = 24;
 const MAX_BIN_SEARCH_DEPTH: usize = 16;
 const EHFRAME_ENTRIES: usize = 0xffff;
 
@@ -26,10 +26,6 @@ static PC: Array<u64> = Array::with_max_entries(EHFRAME_ENTRIES);
 static RIP: Array<Instruction> = Array::with_max_entries(EHFRAME_ENTRIES);
 #[map]
 static RSP: Array<Instruction> = Array::with_max_entries(EHFRAME_ENTRIES);
-#[map]
-static RBP: Array<Instruction> = Array::with_max_entries(EHFRAME_ENTRIES);
-#[map]
-static RBX: Array<Instruction> = Array::with_max_entries(EHFRAME_ENTRIES);
 
 #[map]
 static USER_STACK: HashMap<[u64; MAX_STACK_DEPTH], u32> = HashMap::with_max_entries(1024);
@@ -85,22 +81,8 @@ fn backtrace(regs: &sys::pt_regs, stack: &mut [u64; MAX_STACK_DEPTH]) {
             0
         };
 
-        let rbp = if let Some(irbp) = RBP.get(i) {
-            execute_instruction(&irbp, &regs, cfa).unwrap_or_default()
-        } else {
-            0
-        };
-
-        let rbx = if let Some(irbx) = RBX.get(i) {
-            execute_instruction(&irbx, &regs, cfa).unwrap_or_default()
-        } else {
-            0
-        };
-
         regs.rsp = cfa;
         regs.rip = rip;
-        regs.rbp = rbp;
-        regs.rbx = rbx;
     }
 }
 
@@ -138,8 +120,6 @@ fn execute_instruction(ins: &Instruction, regs: &sys::pt_regs, cfa: u64) -> Opti
         3 => match ins.reg {
             1 => Some((regs.rip as i64 + ins.offset as i64) as u64),
             2 => Some((regs.rsp as i64 + ins.offset as i64) as u64),
-            3 => Some((regs.rbp as i64 + ins.offset as i64) as u64),
-            4 => Some((regs.rbx as i64 + ins.offset as i64) as u64),
             _ => None,
         },
         _ => None,

@@ -95,12 +95,6 @@ fn main() -> Result<()> {
             let mut rsp = bpf.array::<Instruction>("RSP")?;
             rsp.insert(&U32::new(i as _), &row.rsp.into())?;
 
-            let mut rbp = bpf.array::<Instruction>("RBP")?;
-            rbp.insert(&U32::new(i as _), &row.rbp.into())?;
-
-            let mut rbx = bpf.array::<Instruction>("RBX")?;
-            rbx.insert(&U32::new(i as _), &row.rbx.into())?;
-
             i += 1;
         }
     }
@@ -112,7 +106,7 @@ fn main() -> Result<()> {
     pid.cont_and_wait()?;
 
     // TODO create a flamegraph
-    let user_stack = bpf.hash_map::<[U64; 4], U32>("USER_STACK")?;
+    let user_stack = bpf.hash_map::<[U64; 24], U32>("USER_STACK")?;
     for (stack, count) in user_stack.iter() {
         println!("stack observed {} times:", count);
         for (i, ip) in stack.iter().enumerate() {

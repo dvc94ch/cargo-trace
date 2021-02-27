@@ -20,7 +20,7 @@ fn fill_my_stack2(depth: u8) {
 }
 
 fn stack_filled() {
-    bpf_backtrace::walk_stack(|ctx| {
+    /*bpf_backtrace::walk_stack(|ctx| {
         backtrace::resolve(ctx.rip() as *const std::ffi::c_void as *mut _, |symbol| {
             println!(
                 "rip 0x{:x} rsp 0x{:x} rbp 0x{:x} rbx 0x{:x}  {:#}",
@@ -31,5 +31,7 @@ fn stack_filled() {
                 symbol.name().unwrap()
             );
         });
-    });
+    });*/
+    for _ in 0..100000 {
+    }
 }
