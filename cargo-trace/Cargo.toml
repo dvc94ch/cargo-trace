@@ -3,6 +3,9 @@ name = "cargo-trace"
 version = "0.1.0"
 authors = ["David Craven <david@craven.ch>"]
 edition = "2018"
+description = "Oscilloscope for rust programs."
+repository = "https://github.com/dvc94ch/cargo-trace"
+license = "MIT OR Apache-2.0"
 
 [build-dependencies]
 cargo-bpf = "1.3.0"
