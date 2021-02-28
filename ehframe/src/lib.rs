@@ -243,11 +243,7 @@ impl UnwindTable {
 
 impl std::fmt::Display for UnwindTable {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        writeln!(
-            f,
-            "{:18} {:8} {:8}",
-            "ip", "rip", "rsp",
-        )?;
+        writeln!(f, "{:18} {:8} {:8}", "ip", "rip", "rsp",)?;
         for row in &self.rows {
             writeln!(f, "{}", row)?;
         }

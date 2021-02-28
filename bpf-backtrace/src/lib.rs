@@ -1,102 +1,57 @@
 use anyhow::Result;
-use bpf_utils::ehframe::{Instruction, Op, Reg, UnwindTable, UnwindTableRow};
+use bpf_utils::ehframe::{Instruction, Op, Reg};
 use bpf_utils::elf::Elf;
 use bpf_utils::maps::AddressMap;
 
 pub struct UnwindMap {
-    entries: Vec<UnwindEntry>,
+    pc: Vec<u64>,
+    rip: Vec<Instruction>,
+    rsp: Vec<Instruction>,
 }
 
 impl UnwindMap {
     pub fn load() -> Result<Self> {
         let map = AddressMap::load_self()?;
-        let mut entries = vec![];
+        let mut pc = vec![];
+        let mut rip = vec![];
+        let mut rsp = vec![];
         for entry in map.iter() {
             let elf = Elf::open(&entry.path)?;
             let table = elf.unwind_table()?;
-            entries.push(UnwindEntry {
-                load_addr: entry.start_addr,
-                len: entry.end_addr - entry.start_addr,
-                table,
-            });
+            for row in table.rows.iter() {
+                let addr = entry.start_addr + row.start_address;
+                pc.push(addr as u64);
+                rip.push(row.rip.into());
+                rsp.push(row.rsp.into());
+            }
         }
-        entries.sort_unstable_by_key(|entry| entry.load_addr);
-        Ok(Self { entries })
+        Ok(Self { pc, rip, rsp })
     }
 
-    pub fn entry(&self, address: usize) -> Option<&UnwindEntry> {
-        let i = match self
-            .entries
-            .binary_search_by_key(&address, |entry| entry.load_addr)
-        {
-            Ok(i) => i,
-            Err(0) => 0,
-            Err(i) => i - 1,
-        };
-        let entry = &self.entries[i];
-        if address < entry.load_addr || address > entry.load_addr + entry.len {
-            None
-        } else {
-            Some(entry)
-        }
-    }
-}
-
-pub struct UnwindEntry {
-    load_addr: usize,
-    len: usize,
-    table: UnwindTable,
-}
-
-impl UnwindEntry {
-    pub fn row(&self, address: usize) -> Option<&UnwindTableRow> {
+    pub fn binary_search(&self, ip: u64) -> usize {
         let mut left = 0;
-        let mut right = self.table.rows.len() - 1;
+        let mut right = self.pc.len() - 1;
         let mut i = 0;
         for _ in 0..20 {
             if left > right {
                 break;
             }
             i = (left + right) / 2;
-            let pc = self
-                .table
-                .rows
-                .get(i)
-                .map(|r| r.start_address)
-                .unwrap_or(usize::MAX);
-            if pc < address {
+            let pc = self.pc.get(i).copied().unwrap_or(u64::MAX);
+            if pc < ip {
                 left = i;
             } else {
                 right = i;
             }
         }
-        /*let i = match self
-            .table
-            .rows
-            .binary_search_by_key(&address, |entry| entry.start_address)
-        {
-            Ok(i) => i,
-            Err(0) => 0,
-            Err(i) => i - 1,
-        };*/
-        let row = &self.table.rows[i];
-        if address < row.start_address || address >= row.end_address {
-            log::debug!("missing row for 0x{:x}", address);
-            log::debug!("closest match   0x{:x}", row.start_address);
-            log::debug!("                0x{:x}", row.end_address);
-            None
-        } else {
-            Some(row)
-        }
+        i
     }
 }
 
-#[derive(Clone, Copy, Debug, Default)]
-#[repr(C)]
 pub struct UnwindContext {
-    load_addr: usize,
-    rip: usize,
-    rsp: usize,
+    map: UnwindMap,
+    rip: u64,
+    rsp: u64,
 }
 
 impl UnwindContext {
@@ -104,70 +59,60 @@ impl UnwindContext {
     ///
     /// This context must be used straight away: it is unsafe to alter the call stack
     /// before using it, in particular by returning from the calling function.
-    pub unsafe fn get_context() -> UnwindContext {
+    pub unsafe fn get_context() -> Result<UnwindContext> {
+        let map = UnwindMap::load()?;
         let mut ctx: libc::ucontext_t = std::mem::zeroed();
         if libc::getcontext(&mut ctx as *mut _) < 0 {
             panic!("couldn't getcontext");
         }
-        UnwindContext {
-            load_addr: 0,
-            rip: ctx.uc_mcontext.gregs[libc::REG_RIP as usize] as usize,
-            rsp: ctx.uc_mcontext.gregs[libc::REG_RSP as usize] as usize,
-        }
+        Ok(Self {
+            map,
+            rip: ctx.uc_mcontext.gregs[libc::REG_RIP as usize] as u64,
+            rsp: ctx.uc_mcontext.gregs[libc::REG_RSP as usize] as u64,
+        })
     }
 
     /// Unwind the passed context once, in place.
     /// Returns `true` if the context was actually unwinded, or `false` if the end of
     /// the call stack was reached.
-    pub unsafe fn unwind_context(&mut self, map: &mut UnwindMap) -> bool {
+    pub unsafe fn unwind_context(&mut self) -> bool {
         if self.rip == 0 || self.rip + 1 == 0 {
             return false;
         }
 
-        let entry = if let Some(entry) = map.entry(self.rip) {
-            entry
-        } else {
-            return false;
-        };
-        let row = if let Some(row) = entry.row(self.rip - entry.load_addr) {
-            row
-        } else {
-            return false;
-        };
+        let i = self.map.binary_search(self.rip);
+        let irip = self.map.rip[i];
+        let irsp = self.map.rsp[i];
 
-        if !row.rip.is_implemented() || !row.rsp.is_defined() {
+        if !irip.is_implemented() || !irsp.is_defined() {
             return false;
         }
 
-        let rsp = execute_instruction(&row.rsp, self, 0).unwrap();
-        let rip = execute_instruction(&row.rip, self, rsp).unwrap_or_default();
+        let cfa = execute_instruction(&irsp, self.rip, self.rsp, 0).unwrap();
+        let rip = execute_instruction(&irip, self.rip, self.rsp, cfa).unwrap_or_default();
 
-        self.rip = rip as usize;
-        self.rsp = rsp as usize;
+        self.rip = rip;
+        self.rsp = cfa;
 
         true
     }
 
-    pub fn load_addr(&self) -> usize {
-        self.load_addr
-    }
-
-    pub fn rip(&self) -> usize {
+    pub fn rip(&self) -> u64 {
         self.rip
     }
 
-    pub fn rsp(&self) -> usize {
+    pub fn rsp(&self) -> u64 {
         self.rsp
     }
 }
 
-fn execute_instruction(ins: &Instruction, regs: &UnwindContext, next_rsp: u64) -> Option<u64> {
+fn execute_instruction(ins: &Instruction, rip: u64, rsp: u64, cfa: u64) -> Option<u64> {
     match (ins.op(), ins.reg(), ins.offset()) {
         (Op::CfaOffset, None, Some(offset)) => {
-            Some(unsafe { *((next_rsp as i64 + offset) as *const u64) })
+            Some(unsafe { *((cfa as i64 + offset) as *const u64) })
         }
-        (Op::Register, Some(Reg::Rip), Some(offset)) => Some((regs.rip as i64 + offset) as u64),
-        (Op::Register, Some(Reg::Rsp), Some(offset)) => Some((regs.rsp as i64 + offset) as u64),
+        (Op::Register, Some(Reg::Rip), Some(offset)) => Some((rip as i64 + offset) as u64),
+        (Op::Register, Some(Reg::Rsp), Some(offset)) => Some((rsp as i64 + offset) as u64),
         _ => None,
     }
 }
@@ -175,10 +120,9 @@ fn execute_instruction(ins: &Instruction, regs: &UnwindContext, next_rsp: u64) -
 /// Call the passed function once per frame in the call stack, most recent frame first,
 /// with the current context as its sole argument.
 pub fn walk_stack(mut f: impl FnMut(&UnwindContext)) {
-    let mut unwind_map = UnwindMap::load().unwrap();
-    let mut ctx = unsafe { UnwindContext::get_context() };
-    unsafe { ctx.unwind_context(&mut unwind_map) };
-    while unsafe { ctx.unwind_context(&mut unwind_map) } {
+    let mut ctx = unsafe { UnwindContext::get_context().unwrap() };
+    unsafe { ctx.unwind_context() };
+    while unsafe { ctx.unwind_context() } {
         f(&ctx);
     }
 }
