@@ -45,14 +45,6 @@ impl Instruction {
         }
     }
 
-    pub fn plt() -> Self {
-        Self {
-            op: Op::PltExpr,
-            reg: None,
-            offset: None,
-        }
-    }
-
     #[inline(always)]
     pub fn op(&self) -> Op {
         self.op
@@ -95,7 +87,6 @@ impl std::fmt::Display for Instruction {
                 let op = if offset >= 0 { "+" } else { "" };
                 write!(f, "{}{}{}", reg, op, offset)
             }
-            Op::PltExpr => write!(f, "plt"),
         }
     }
 }
@@ -113,10 +104,6 @@ pub enum Op {
     CfaOffset = 2,
     /// Value of a machine register plus offset.
     Register = 3,
-    /// Value is the evaluation of the standard PLT
-    /// expression, ie `((rip & 15) >= 11) >> 3 + rsp`.
-    /// This is hardcoded because it is a common expression.
-    PltExpr = 4,
 }
 
 /// Dwarf register.
@@ -125,8 +112,6 @@ pub enum Op {
 pub enum Reg {
     Rip = libc::REG_RIP as u8,
     Rsp = libc::REG_RSP as u8,
-    Rbp = libc::REG_RBP as u8,
-    Rbx = libc::REG_RBX as u8,
 }
 
 impl Reg {
@@ -134,8 +119,6 @@ impl Reg {
         Some(match reg {
             gimli::X86_64::RA => Self::Rip,
             gimli::X86_64::RSP => Self::Rsp,
-            gimli::X86_64::RBP => Self::Rbp,
-            gimli::X86_64::RBX => Self::Rbx,
             _ => return None,
         })
     }
@@ -146,8 +129,6 @@ impl std::fmt::Display for Reg {
         match self {
             Self::Rip => write!(f, "rip"),
             Self::Rsp => write!(f, "rsp"),
-            Self::Rbp => write!(f, "rbp"),
-            Self::Rbx => write!(f, "rbx"),
         }
     }
 }
@@ -163,10 +144,6 @@ pub struct UnwindTableRow {
     pub rip: Instruction,
     /// Instruction to unwind `rsp` register.
     pub rsp: Instruction,
-    /// Instruction to unwind `rbp` register.
-    pub rbp: Instruction,
-    /// Instruction to unwind `rbx` register. Is sometimes used for unwinding.
-    pub rbx: Instruction,
 }
 
 impl UnwindTableRow {
@@ -199,22 +176,6 @@ impl UnwindTableRow {
                     Instruction::unimpl()
                 }
             },
-            rbp: match row.register(gimli::X86_64::RBP) {
-                RegisterRule::Undefined => Instruction::undef(),
-                RegisterRule::Offset(offset) => Instruction::cfa_offset(offset),
-                _ => {
-                    log::debug!("unimpl rbp {:?}", row.register(gimli::X86_64::RBP));
-                    Instruction::unimpl()
-                }
-            },
-            rbx: match row.register(gimli::X86_64::RBX) {
-                RegisterRule::Undefined => Instruction::undef(),
-                RegisterRule::Offset(offset) => Instruction::cfa_offset(offset),
-                _ => {
-                    log::debug!("unimpl rbx {:?}", row.register(gimli::X86_64::RBX));
-                    Instruction::unimpl()
-                }
-            },
         })
     }
 }
@@ -223,13 +184,11 @@ impl std::fmt::Display for UnwindTableRow {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
             f,
-            "0x{:0>6x}-0x{:0>6x} {:8} {:8} {:8} {:8}",
+            "0x{:0>6x}-0x{:0>6x} {:8} {:8}",
             self.start_address,
             self.end_address,
             self.rip.to_string(),
             self.rsp.to_string(),
-            self.rbp.to_string(),
-            self.rbx.to_string(),
         )
     }
 }
@@ -286,8 +245,8 @@ impl std::fmt::Display for UnwindTable {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         writeln!(
             f,
-            "{:18} {:8} {:8} {:8} {:8}",
-            "ip", "rip", "rsp", "rbp", "rbx",
+            "{:18} {:8} {:8}",
+            "ip", "rip", "rsp",
         )?;
         for row in &self.rows {
             writeln!(f, "{}", row)?;

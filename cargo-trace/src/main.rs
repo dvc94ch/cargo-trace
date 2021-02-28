@@ -27,13 +27,10 @@ impl From<ehframe::Instruction> for Instruction {
                 ehframe::Op::Undefined => 1,
                 ehframe::Op::CfaOffset => 2,
                 ehframe::Op::Register => 3,
-                ehframe::Op::PltExpr => 0,
             },
             reg: match ins.reg() {
                 Some(ehframe::Reg::Rip) => 1,
                 Some(ehframe::Reg::Rsp) => 2,
-                Some(ehframe::Reg::Rbp) => 0,
-                Some(ehframe::Reg::Rbx) => 0,
                 None => 0,
             },
             _padding: U16::new(0),
