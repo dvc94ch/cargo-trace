@@ -1,5 +1,7 @@
 # cargo-trace
-An ebpf oscilloscope for your rust programs.
+An ebpf oscilloscope for your rust programs. Unwinds the stack in ebpf when the probe is
+triggered and increments the event count. After the program terminates, it generates a
+flamegraph for analysis.
 
 ## One-Liners
 
@@ -15,7 +17,7 @@ cargo trace profile:hz:99
 cargo trace uprobe:/usr/lib/libc-2.33.so:malloc
 ```
 
-### Almost but working but not quite
+### Almost working but not quite
 
 ```
 # Find out where your program is blocking
