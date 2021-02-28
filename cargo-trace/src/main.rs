@@ -1,6 +1,6 @@
 use anyhow::Result;
 use bpf::utils::{ehframe, sudo, BinaryInfo};
-use bpf::{BpfBuilder, Probe, ProgramType, I32, U16, U32, U64};
+use bpf::{BpfBuilder, Probe, ProgramType, I64, U32, U64};
 use cargo_subcommand::Subcommand;
 use std::process::Command;
 use zerocopy::{AsBytes, FromBytes, Unaligned};
@@ -13,28 +13,20 @@ static PROBE: &[u8] = include_bytes!(concat!(
 #[derive(Clone, Copy, AsBytes, FromBytes, Unaligned)]
 #[repr(C)]
 pub struct Instruction {
-    op: u8,
-    reg: u8,
-    _padding: U16,
-    offset: I32,
+    op: U64,
+    offset: I64,
 }
 
 impl From<ehframe::Instruction> for Instruction {
     fn from(ins: ehframe::Instruction) -> Self {
         Self {
-            op: match ins.op() {
-                ehframe::Op::Unimplemented => 0,
-                ehframe::Op::Undefined => 1,
-                ehframe::Op::CfaOffset => 2,
-                ehframe::Op::Register => 3,
-            },
-            reg: match ins.reg() {
-                Some(ehframe::Reg::Rip) => 1,
-                Some(ehframe::Reg::Rsp) => 2,
-                None => 0,
-            },
-            _padding: U16::new(0),
-            offset: I32::new(ins.offset().unwrap_or_default() as _),
+            op: U64::new(match (ins.op(), ins.reg()) {
+                (ehframe::Op::CfaOffset, None) => 1,
+                (ehframe::Op::Register, Some(ehframe::Reg::Rip)) => 2,
+                (ehframe::Op::Register, Some(ehframe::Reg::Rsp)) => 3,
+                _ => 0,
+            }),
+            offset: I64::new(ins.offset().unwrap_or_default()),
         }
     }
 }

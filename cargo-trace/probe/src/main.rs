@@ -14,10 +14,8 @@ const EHFRAME_ENTRIES: usize = 0xffff;
 #[derive(Clone, Copy)]
 #[repr(C)]
 pub struct Instruction {
-    op: u8,
-    reg: u8,
-    _padding: u16,
-    offset: i32,
+    op: u64,
+    offset: i64,
 }
 
 #[map]
@@ -55,40 +53,33 @@ fn increment_stack_counter(regs: &sys::pt_regs) {
 }
 
 fn backtrace(regs: &sys::pt_regs, stack: &mut [u64; MAX_STACK_DEPTH]) {
-    let mut regs = regs.clone();
+    let mut rip = regs.rip;
+    let mut rsp = regs.rsp;
     for d in 0..MAX_STACK_DEPTH {
-        // save rip in stack trace
-        stack[d] = regs.rip;
-        // exit loop if we reached the bottom of the stack
-        if regs.rip == 0 {
+        stack[d] = rip;
+        if rip == 0 {
             break;
         }
-        // search for the instruction index based on the current program counter
-        let i = binary_search(regs.rip);
+        let i = binary_search(rip);
 
-        let irsp = if let Some(irsp) = RSP.get(i) {
-            irsp
+        let ins = if let Some(ins) = RSP.get(i) {
+            ins
         } else {
             break;
         };
-        let cfa = if let Some(cfa) = execute_instruction(&irsp, &regs, 0) {
+        let cfa = if let Some(cfa) = execute_instruction(&ins, rip, rsp, 0) {
             cfa
         } else {
             break;
         };
 
-        let rip = if let Some(irip) = RIP.get(i) {
-            if let Some(rip) = execute_instruction(&irip, &regs, cfa) {
-                rip
-            } else {
-                break;
-            }
+        let ins = if let Some(ins) = RIP.get(i) {
+            ins
         } else {
-            0
+            break;
         };
-
-        regs.rsp = cfa;
-        regs.rip = rip;
+        rip = execute_instruction(&ins, rip, rsp, cfa).unwrap_or_default();
+        rsp = cfa;
     }
 }
 
@@ -111,10 +102,9 @@ fn binary_search(rip: u64) -> u32 {
     i
 }
 
-fn execute_instruction(ins: &Instruction, regs: &sys::pt_regs, cfa: u64) -> Option<u64> {
+fn execute_instruction(ins: &Instruction, rip: u64, rsp: u64, cfa: u64) -> Option<u64> {
     match ins.op {
-        1 => None,
-        2 => {
+        1 => {
             let unsafe_ptr = (cfa as i64 + ins.offset as i64) as *const core::ffi::c_void;
             let mut res: u64 = 0;
             if unsafe { sys::bpf_probe_read(&mut res as *mut _ as *mut _, 8, unsafe_ptr) } == 0 {
@@ -123,11 +113,8 @@ fn execute_instruction(ins: &Instruction, regs: &sys::pt_regs, cfa: u64) -> Opti
                 None
             }
         }
-        3 => match ins.reg {
-            1 => Some((regs.rip as i64 + ins.offset as i64) as u64),
-            2 => Some((regs.rsp as i64 + ins.offset as i64) as u64),
-            _ => None,
-        },
+        2 => Some((rip as i64 + ins.offset as i64) as u64),
+        3 => Some((rsp as i64 + ins.offset as i64) as u64),
         _ => None,
     }
 }

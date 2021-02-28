@@ -76,17 +76,13 @@ impl UnwindContext {
     /// Returns `true` if the context was actually unwinded, or `false` if the end of
     /// the call stack was reached.
     pub unsafe fn unwind_context(&mut self) -> bool {
-        if self.rip == 0 || self.rip + 1 == 0 {
+        if self.rip == 0 {
             return false;
         }
 
         let i = self.map.binary_search(self.rip);
         let irip = self.map.rip[i];
         let irsp = self.map.rsp[i];
-
-        if !irip.is_implemented() || !irsp.is_defined() {
-            return false;
-        }
 
         let cfa = execute_instruction(&irsp, self.rip, self.rsp, 0).unwrap();
         let rip = execute_instruction(&irip, self.rip, self.rsp, cfa).unwrap_or_default();
