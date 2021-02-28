@@ -12,6 +12,8 @@ anyhow = "1.0.38"
 bpf = { version = "0.1.0", path = "../bpf" }
 cargo-subcommand = "0.5.0"
 env_logger = "0.8.3"
+inferno = "0.10.3"
+libc = "0.2.86"
 log = "0.4.14"
 ptracer = "0.3.1"
 zerocopy = "0.3.0"

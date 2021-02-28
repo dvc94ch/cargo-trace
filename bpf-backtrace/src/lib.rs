@@ -32,7 +32,7 @@ impl UnwindMap {
         let mut left = 0;
         let mut right = self.pc.len() - 1;
         let mut i = 0;
-        for _ in 0..20 {
+        for _ in 0..24 {
             if left > right {
                 break;
             }

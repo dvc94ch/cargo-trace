@@ -2,6 +2,9 @@ use anyhow::Result;
 use bpf::utils::{ehframe, sudo, BinaryInfo};
 use bpf::{BpfBuilder, Probe, ProgramType, I64, U32, U64};
 use cargo_subcommand::Subcommand;
+use inferno::flamegraph::{self, Options};
+use std::fs::{File, OpenOptions};
+use std::io::{BufRead, BufReader, Write};
 use std::process::Command;
 use zerocopy::{AsBytes, FromBytes, Unaligned};
 
@@ -45,6 +48,7 @@ fn main() -> Result<()> {
             std::process::exit(status.code().unwrap());
         }
     }
+    let uid = unsafe { libc::getuid() };
     sudo::with_env(&["RUST_LOG"]).unwrap();
 
     let mut info = BinaryInfo::from_cargo_subcommand(&cmd)?;
@@ -90,28 +94,25 @@ fn main() -> Result<()> {
     log::debug!("running program");
     info.cont()?;
 
+    unsafe { libc::setuid(uid) };
     let user_stack = bpf.hash_map::<[U64; 48], U32>("USER_STACK")?;
-    print_stacktrace(&info, user_stack.iter())?;
+
+    write_flamegraph(&info, user_stack.iter(), cmd.cmd().to_string())?;
 
     Ok(())
 }
 
-#[allow(unused)]
-fn print_stacktrace(info: &BinaryInfo, iter: impl Iterator<Item = ([U64; 48], U32)>) -> Result<()> {
-    for (stack, count) in iter {
-        for (i, ip) in stack.iter().enumerate() {
-            let ip = ip.get() as usize;
-            if ip == 0 {
-                break;
-            }
-            info.print_frame(i, ip)?;
-        }
-    }
-    Ok(())
-}
+fn write_flamegraph(
+    info: &BinaryInfo,
+    iter: impl Iterator<Item = ([U64; 48], U32)>,
+    title: String,
+) -> Result<()> {
+    let mut f = OpenOptions::new()
+        .create(true)
+        .truncate(true)
+        .write(true)
+        .open("collapsed.txt")?;
 
-#[allow(unused)]
-fn print_flamegraph(info: &BinaryInfo, iter: impl Iterator<Item = ([U64; 48], U32)>) -> Result<()> {
     let mut symbols = Vec::with_capacity(48);
     for (stack, count) in iter {
         symbols.clear();
@@ -130,7 +131,19 @@ fn print_flamegraph(info: &BinaryInfo, iter: impl Iterator<Item = ([U64; 48], U3
         let mut collapsed = symbols.join(";");
         collapsed.push(' ');
         collapsed.push_str(&count.to_string());
-        println!("{}", collapsed);
+        writeln!(f, "{}", collapsed)?;
     }
+
+    let collapsed = BufReader::new(File::open("collapsed.txt")?)
+        .lines()
+        .collect::<Result<Vec<_>, _>>()?;
+    let f = OpenOptions::new()
+        .create(true)
+        .truncate(true)
+        .write(true)
+        .open("flamegraph.svg")?;
+    let mut options = Options::default();
+    options.title = title;
+    flamegraph::from_lines(&mut options, collapsed.iter().map(|s| s.as_str()), f)?;
     Ok(())
 }
