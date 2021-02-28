@@ -40,23 +40,22 @@ impl BpfBuilder {
         })
     }
 
-    pub fn set_child_pid<T: Into<u32>>(mut self, pid: T) -> Self {
+    pub fn set_child_pid<T: Into<u32>>(&mut self, pid: T) {
         self.child_pid = Some(pid.into());
-        self
     }
 
-    pub fn attach_probe_str(self, probe: &str, entry: &'static str) -> Result<Self> {
+    pub fn attach_probe_str(&mut self, probe: &str, entry: &'static str) -> Result<()> {
         self.attach_probe(probe.parse()?, entry)
     }
 
-    pub fn attach_probe(mut self, probe: Probe, entry: &'static str) -> Result<Self> {
+    pub fn attach_probe(&mut self, probe: Probe, entry: &'static str) -> Result<()> {
         let new_prog = self.new_obj.prog(entry)?.unwrap();
         new_prog.set_prog_type(probe.prog_type());
         if let Some(attach_type) = probe.attach_type() {
             new_prog.set_attach_type(attach_type);
         }
         self.probes.push((probe, entry));
-        Ok(self)
+        Ok(())
     }
 
     pub fn load(self) -> Result<Bpf> {

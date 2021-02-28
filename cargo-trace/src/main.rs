@@ -64,10 +64,13 @@ fn main() -> Result<()> {
     };
     log::debug!("setting default path to {}", info.path().display());
     probe.set_default_path(info.path());
-    let mut bpf = BpfBuilder::new(PROBE)?
-        .set_child_pid(info.pid()) // without this we will get kernel ip
-        .attach_probe(probe, entry)?
-        .load()?;
+    let mut builder = BpfBuilder::new(PROBE)?;
+    if let ProgramType::PerfEvent = probe.prog_type() {
+        // without this we will get kernel regs instead of user regs.
+        builder.set_child_pid(info.pid());
+    }
+    builder.attach_probe(probe, entry)?;
+    let mut bpf = builder.load()?;
     log::debug!("loaded bpf program");
 
     let mut i = 0;
