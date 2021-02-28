@@ -8,8 +8,8 @@ program!(0xFFFF_FFFE, b"GPL");
 // absolute maximum would be 512 byte stack size limit / 8 byte address = 64. but since
 // we need some stack for other variables this needs to be lower.
 const MAX_STACK_DEPTH: usize = 48;
-const MAX_BIN_SEARCH_DEPTH: usize = 16;
-const EHFRAME_ENTRIES: usize = 0xffff;
+const MAX_BIN_SEARCH_DEPTH: usize = 24;
+const EHFRAME_ENTRIES: usize = 0xff_ffff;
 
 #[derive(Clone, Copy)]
 #[repr(C)]
