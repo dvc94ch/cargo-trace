@@ -58,7 +58,7 @@ offset the appropriate dwarf unwind table row is found in the `.ehframe` section
 row has a start/end address it is valid for and a dwarf program for each cpu register that when
 executed will yield the register value of the previous frame. It can be empirically determined that
 almost all dwarf programs consist of a single instruction and use only three different instructions.
-`rip+offset`, `rsp+offset` or `*cfa+offset`, where `cfa` is the `rsp` value of the current frame. The
+`rip+offset`, `rsp+offset` or `*cfa+offset`, where `cfa` is the `rsp` value of the previous frame. The
 result of the unwinding is an array of instruction pointers.
 
 NOTE: kernel stacks use a different unwind mechanism and a backtrace can be captured using the
@@ -69,8 +69,8 @@ bpf helper `bpf_get_stack` and symbolized by looking up the symbols in `/proc/ka
 Once we have an array of instruction pointers we again need the address map to find the load
 address for each ip which is subtracted to get an offset and a file path of the binary. The binary
 may contain debug symbols in which case we can return the function name and location. If it does
-not we can look try looking up the symbol name in the symbol table. This is how the compiler
-generated `main` and `_start` symbols and functions from dynamic libraries are symbolized.
+not we can look up the symbol name in the symbol table. This is how the compiler generated `main`
+and `_start` symbols and functions from dynamic libraries are symbolized.
 
 NOTE: If debug symbols for stripped binaries from your distro are installed they are located by the
 elf `build_id`, a random 20 byte sequence contained in every elf file. But these are unnecessary for
