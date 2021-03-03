@@ -3,6 +3,14 @@ An ebpf oscilloscope for your rust programs. Unwinds the stack in ebpf when the 
 triggered and increments the event count. After the program terminates, it generates a
 flamegraph for analysis.
 
+Also includes a bpf library with a specific focus on building program analysis tools for rust
+programs. Most of the code is very generic so it can be easily adapted for other bpf use
+cases. Supports most probe types supported by [`bpftrace`](https://github.com/iovisor/bpftrace).
+
+ebpf (extended berkley packet filter) is a virtual machine inside of the kernel. While it was
+originally intended for packet filtering without context switching to user space, these days
+it can also be used as a swiss army knife for performance analysis.
+
 ## One-Liners
 
 The following one-liners demonstrate different capabilities:
@@ -24,10 +32,26 @@ cargo trace uprobe:/usr/lib/libc-2.33.so:malloc
 cargo trace kprobe:finish_schedule_task
 ```
 
-## bpf library
-Also includes a bpf library with a specific focus on building program analysis tools for rust
-programs. Most of the code is very generic so it can be easily adapted for other bpf use
-cases. Supports most probe types supported by [`bpftrace`](https://github.com/iovisor/bpftrace).
+## Comparison to other performance analysis tools
+
+- `perf` relies on `perf_event_open_sys` to sample the stack. Every time a sample is taken, the
+entire stack is copied into user space. Stack unwinding is performed in user space as a post
+processing step. This wastes bandwidth and is a security concern as it may dump secrets like
+private keys.
+
+- `strace` and `ltrace` use `ptrace` to set breakpoints and manipulate the program state. They stop
+the program and use `libunwind` to unwind the stack in user space and resume the program afterwards.
+
+- `heaptrack` and `stackusage` use `LD_PRELOAD` to instrument `malloc`, `free` and `pthread_create`.
+They use `libunwind` to unwind capture the stack trace in the same process. This is not generalizable
+to syscalls or other kernel functions.
+
+- `valgrind` runs the program in a sandbox. This has a fairly large overhead.
+
+- `bpftrace` is `bpf` based but has a focus on analyzing system performance and not application
+performance. This means it can not do dwarf based unwinding and relies on the entire distribution
+being compiled with frame pointers enabled. Due to it's low overhead it can be used in production
+systems for monitoring.
 
 ## Background
 
