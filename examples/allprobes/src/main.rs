@@ -26,21 +26,21 @@ static PROBES: &[&str] = &[
 
 fn main() -> Result<()> {
     bpf::utils::sudo::escalate_if_needed().unwrap();
-    let mut bpf = BpfBuilder::new(PROBE)?
-        .attach_probe_str("kprobe:finish_task_switch", "kprobe")?
-        .attach_probe_str("kretprobe:finish_task_switch", "kretprobe")?
-        .attach_probe_str("uprobe:/usr/lib/libc-2.33.so:malloc", "uprobe")?
-        .attach_probe_str("uretprobe:/usr/lib/libc-2.33.so:free", "uretprobe")?
-        //.attach_probe_str("usdt:/path:probe")?
-        .attach_probe_str("tracepoint:raw_syscalls:sys_enter", "tracepoint")?
-        .attach_probe_str("profile:hz:99", "profile")?
-        .attach_probe_str("interval:ms:100", "interval")?
-        .attach_probe_str("software:cs:1", "software")?
-        .attach_probe_str("hardware:cache-misses:1", "hardware")?
-        //.attach_probe_str("watchpoint:address:length:mode", "watchpoint")?
-        //.attach_probe_str("kfunc:func", "kfunc")?
-        //.attach_probe_str("kretfunc:func", "kretfunc")?
-        .load()?;
+    let mut builder = BpfBuilder::new(PROBE)?;
+    builder.attach_probe_str("kprobe:finish_task_switch", "kprobe")?;
+    builder.attach_probe_str("kretprobe:finish_task_switch", "kretprobe")?;
+    builder.attach_probe_str("uprobe:/usr/lib/libc-2.33.so:malloc", "uprobe")?;
+    builder.attach_probe_str("uretprobe:/usr/lib/libc-2.33.so:free", "uretprobe")?;
+    //builder.attach_probe_str("usdt:/path:probe")?;
+    builder.attach_probe_str("tracepoint:raw_syscalls:sys_enter", "tracepoint")?;
+    builder.attach_probe_str("profile:hz:99", "profile")?;
+    builder.attach_probe_str("interval:ms:100", "interval")?;
+    builder.attach_probe_str("software:cs:1", "software")?;
+    builder.attach_probe_str("hardware:cache-misses:1", "hardware")?;
+    //builder.attach_probe_str("watchpoint:address:length:mode", "watchpoint")?;
+    //builder.attach_probe_str("kfunc:func", "kfunc")?;
+    //builder.attach_probe_str("kretfunc:func", "kretfunc")?;
+    let mut bpf = builder.load()?;
 
     std::thread::sleep(Duration::from_millis(1000));
 

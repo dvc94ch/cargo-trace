@@ -269,7 +269,7 @@ mod tests {
             (
                 "uprobe:/path:symbol",
                 Probe::Uprobe {
-                    path: "/path".into(),
+                    path: Some("/path".into()),
                     symbol: "symbol".into(),
                     offset: 0,
                 },
@@ -277,7 +277,7 @@ mod tests {
             (
                 "uprobe:/path:symbol+8",
                 Probe::Uprobe {
-                    path: "/path".into(),
+                    path: Some("/path".into()),
                     symbol: "symbol".into(),
                     offset: 8,
                 },
@@ -285,7 +285,7 @@ mod tests {
             (
                 "uretprobe:/path:symbol",
                 Probe::Uretprobe {
-                    path: "/path".into(),
+                    path: Some("/path".into()),
                     symbol: "symbol".into(),
                 },
             ),

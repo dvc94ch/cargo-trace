@@ -3,7 +3,7 @@ use anyhow::Result;
 use ehframe::UnwindTable;
 use memmap::Mmap;
 use object::elf::FileHeader64;
-use object::read::elf::{Dyn, ElfFile, ProgramHeader};
+use object::read::elf::ElfFile;
 use object::{NativeEndian, Object, ObjectSymbol};
 use std::fs::File;
 use std::path::{Path, PathBuf};
@@ -80,7 +80,8 @@ impl Elf {
         Ok(None)
     }
 
-    pub fn dynamic(&self) -> Result<Vec<String>> {
+    // Enable in next release of object
+    /*pub fn dynamic(&self) -> Result<Vec<String>> {
         let mut libs = vec![];
         for segment in self.0.obj.raw_segments() {
             if let Some(entries) = segment.dynamic(NativeEndian, self.0.obj.data())? {
@@ -113,7 +114,7 @@ impl Elf {
             }
         }
         Ok(libs)
-    }
+    }*/
 }
 
 type Reader = gimli::EndianRcSlice<gimli::RunTimeEndian>;
@@ -192,7 +193,7 @@ mod tests {
         assert_eq!(symbol, "main");
         println!("address of main: 0x{:x}", address);
         println!("build id: {}", elf.build_id()?);
-        println!("dynamic: {:?}", elf.dynamic()?);
+        //println!("dynamic: {:?}", elf.dynamic()?);
         let dwarf = elf.dwarf()?;
         let location = dwarf.resolve_location(0x5340)?.unwrap();
         println!(

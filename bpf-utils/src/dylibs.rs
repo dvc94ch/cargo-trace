@@ -188,33 +188,3 @@ impl std::fmt::Display for BinaryInfo {
         Ok(())
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    const TARGET_DIR: &str = "../target";
-    const BIN: &str = "../target/debug/examples/hello_world";
-
-    #[test]
-    fn test_binary_info() -> Result<()> {
-        let target_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join(TARGET_DIR);
-        let bin = Path::new(env!("CARGO_MANIFEST_DIR")).join(BIN);
-        let search_paths = get_cargo_search_paths(&target_dir, "", Path::new("debug"))?;
-        println!("{:?}", search_paths);
-        let info = BinaryInfo::new(&bin, &search_paths)?;
-        println!("{}", info);
-        Ok(())
-    }
-
-    #[test]
-    fn test_subcommand_binary_info() -> Result<()> {
-        let args = "cargo cmd -- --example hello_world";
-        let cmd = Subcommand::new(args.split(' ').map(|s| s.to_string()), "cmd", |_, _| {
-            Ok(false)
-        })?;
-        let info = BinaryInfo::from_cargo_subcommand(&cmd)?;
-        println!("{}", info);
-        Ok(())
-    }
-}

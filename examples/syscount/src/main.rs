@@ -17,10 +17,10 @@ pub struct SyscallInfo {
 
 fn main() -> Result<()> {
     bpf::utils::sudo::escalate_if_needed().unwrap();
-    let mut bpf = BpfBuilder::new(PROBE)?
-        .attach_probe_str("tracepoint:raw_syscalls:sys_enter", "sys_enter")?
-        .attach_probe_str("tracepoint:raw_syscalls:sys_exit", "sys_exit")?
-        .load()?;
+    let mut builder = BpfBuilder::new(PROBE)?;
+    builder.attach_probe_str("tracepoint:raw_syscalls:sys_enter", "sys_enter")?;
+    builder.attach_probe_str("tracepoint:raw_syscalls:sys_exit", "sys_exit")?;
+    let mut bpf = builder.load()?;
     let data = bpf.hash_map::<U32, SyscallInfo>("DATA")?;
     let table = bpf::utils::syscall_table()?;
     println!("{:10} {:6} {:10}", "SYSCALL", "COUNT", "NS");
